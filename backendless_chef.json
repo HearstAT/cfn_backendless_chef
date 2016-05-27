@@ -630,7 +630,8 @@
                 "AvailabilityZones" : { "Fn::GetAZs" : ""},
                 "VPCZoneIdentifier": [ { "Ref" : "SubnetA" },{ "Ref" : "SubnetB" },{ "Ref" : "SubnetC" } ],
                 "LaunchConfigurationName" : {"Ref": "ServerLaunchConfig"},
-                "MinSize" : "2",
+                "MinSize" : "1",
+                "DesiredCapacity" : "2",
                 "MaxSize" : "3",
                 "LoadBalancerNames" : [{ "Ref" : "PrimaryElasticLoadBalancer" }, { "Ref" : "SecondaryElasticLoadBalancer" }],
                 "Tags" : [{ "Key" : "Name", "Value" : "Chef-Scale-Group", "PropagateAtLaunch":"true" }]
