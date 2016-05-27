@@ -80,23 +80,28 @@
         "DBUser": {
             "Type": "String",
             "Default": "",
-            "Description": "(External Only) Enter DB User Name"
+            "Description": "Enter DB User Name"
         },
         "DBPassword": {
             "Type": "String",
             "NoEcho": "true",
             "Default": "",
-            "Description": "(External Only) Enter DB Password"
+            "Description": "Enter DB Password"
         },
         "DBPort": {
             "Type": "String",
             "Default": "5432",
-            "Description": "(External Only) Enter DB Port"
+            "Description": "Enter DB Port"
         },
         "DBURL": {
             "Type": "String",
             "Default": "",
-            "Description": "(External Only) Enter DB URL or VIP"
+            "Description": "Enter DB URL or VIP"
+        },
+        "ElasticSearchURL": {
+            "Type": "String",
+            "Default": "",
+            "Description": "Enter ElasticSearch URL"
         },
         "UseExistingBucket": {
             "Type": "String",
@@ -285,6 +290,10 @@
                 {
                     "Label" : { "default": "Database Configuration" },
                     "Parameters" : ["DBUser","DBPassword", "DBPort", "DBURL"]
+                },
+                {
+                    "Label" : { "default": "ElasticSearch Configuration" },
+                    "Parameters" : ["ElasticSearchURL"]
                 },
                 {
                     "Label" : { "default": "Mail Configuration (Optional)" },
@@ -673,6 +682,7 @@
                         "export DB_PASSWORD='", { "Ref" : "DBPassword" } ,"'\n",
                         "export DB_PORT='", { "Ref" : "DBPort" } ,"'\n",
                         "export DB_URL='", { "Ref" : "DBURL" } ,"'\n",
+                        "export SEARCH_URL='", { "Ref" : "ElasticSearchURL" } ,"'\n",
                         "export COOKBOOK='", { "Ref" : "Cookbook" } ,"'\n",
                         "export COOKBOOK_GIT='", { "Ref" : "CookbookGit" } ,"'\n",
                         "export COOKBOOK_BRANCH='", { "Ref" : "CookbookGitBranch" } ,"'\n",
