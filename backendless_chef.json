@@ -71,12 +71,6 @@
             "Default": "25",
             "Description": "Enter how many licenses you have purchased"
         },
-        "ExternalDB": {
-            "Type": "String",
-            "Default": "true",
-            "AllowedValues": ["true", "false"],
-            "Description": "Choose between an true (external) or false (internal) DB configuration"
-        },
         "DBUser": {
             "Type": "String",
             "Default": "",
