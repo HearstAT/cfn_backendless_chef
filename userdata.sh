@@ -1,6 +1,6 @@
 #!/bin/bash -xev
 
-#### UserData Tiered Chef Helper Script v 1.0
+#### UserData Backendless Chef Helper Script v 1.0
 ### Script Params, exported in Cloudformation
 # ${REGION} == AWS::Region
 # ${ACCESS_KEY} == AccessKey && ['aws_access_key_id']
@@ -9,20 +9,16 @@
 # ${DOMAIN} == HostedZone && ['domain']
 # ${SECONDARY_DOMAIN} == SecondaryDomain
 # ${SUBDOMAIN} == HostedSubdomain
-# ${ENVIRONMENT} == Environment
 # ${BUCKET} == ChefBucket || ExternalBucket
 # ${BACKUP_ENABLE} == BackupEnable && ['backup']['enable_backups']
 # ${EXISTING_INSTALL} == ExistingInstall
 # ${CHEFDIR} == ChefDir
 # ${S3DIR} == S3Dir
 # ${ENABLE_SSL} == BackendSSL
-# ${DB_CHOICE} == DBChoice
 # ${DB_USER} == DBUser
 # ${DB_PASSWORD} == DBPassword
 # ${DB_PORT} == DBPort
 # ${DB_URL} == DBURL
-# ${COOKBOOK_CHOICE} == CookbookChoice
-# ${COOKBOOK_BUCKET} == CookbookBucket
 # ${COOKBOOK} == Cookbook
 # ${COOKBOOK_GIT} == CookbookGit
 # ${COOKBOOK_BRANCH} == CookbookGitBranch
@@ -97,10 +93,8 @@ echo "${ACCESS_KEY}" | tr -d '\n' > ${S3DIR}/aws/access_key
 echo "${SECRET_KEY}" | tr -d '\n' > ${S3DIR}/aws/secret_key
 
 ## DB Creds
-if [ ${DB_CHOICE} == 'true' ]; then
-    echo "${DB_USER}" | tr -d '\n' > ${S3DIR}/db/username
-    echo "${DB_PASSWORD}" | tr -d '\n' > ${S3DIR}/db/password
-fi
+echo "${DB_USER}" | tr -d '\n' > ${S3DIR}/db/username
+echo "${DB_PASSWORD}" | tr -d '\n' > ${S3DIR}/db/password
 
 ## Mail
 echo "${MAIL_HOST} ${MAIL_CREDS}" | tr -d '\n' > ${S3DIR}/mail/creds
@@ -171,7 +165,6 @@ cat > "${CHEFDIR}/chef_stack.json" << EOF
             "url": "${SEARCH_URL}"
         },
         "database": {
-            "ext_enable": ${DB_CHOICE},
             "port": "${DB_PORT}",
             "url": "${DB_URL}"
         },
@@ -209,9 +202,10 @@ if [ ! -f "/opt/chef/embedded/bin/berks" ]; then
     /opt/chef/embedded/bin/gem install berkshelf
 fi
 
-# Backend Only: Copy post install json and swap attribute to true if needed
-cp ${CHEFDIR}/chef_stack.json ${CHEFDIR}/chef_stack_post_restore.json
-sed -i 's/\"restore\": false/\"restore\": true/g' ${CHEFDIR}/chef_stack_post_restore.json
+# Copy json and setup for auto-restore option
+cp ${CHEFDIR}/chef_stack.json ${CHEFDIR}/restore.json
+sed -i 's/\"restore\": false/\"restore\": true/g' ${CHEFDIR}/restore.json
+sed -i "s/${COOKBOOK}/${COOKBOOK}::restore/g" ${CHEFDIR}/restore.json
 
 cat > ${CHEFDIR}/runner.json <<EOF
 {"run_list":["recipe[apt-chef]","recipe[chef-client]"]}
