@@ -146,7 +146,6 @@ cat > "${CHEFDIR}/chef_stack.json" << EOF
     "${COOKBOOK}": {
         "master": "${MASTER}",
         "backup": {
-            "restore": false,
             "enable_backups": ${BACKUP_ENABLE}
         },
         "licensecount": "${LICENSE_COUNT}",
@@ -204,7 +203,6 @@ fi
 
 # Copy json and setup for auto-restore option
 cp ${CHEFDIR}/chef_stack.json ${CHEFDIR}/restore.json
-sed -i 's/\"restore\": false/\"restore\": true/g' ${CHEFDIR}/restore.json
 sed -i "s/${COOKBOOK}/${COOKBOOK}::restore/g" ${CHEFDIR}/restore.json
 
 cat > ${CHEFDIR}/runner.json <<EOF
