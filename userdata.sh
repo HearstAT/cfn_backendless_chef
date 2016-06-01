@@ -78,7 +78,7 @@ FQDN="chef-fe-$(curl -sS http://169.254.169.254/latest/meta-data/instance-id).${
 
 if [ ${EXISTING_INSTALL} == 'false' ]; then
     if [ ! -f ${S3DIR}/master ]; then
-        echo ${HOSTNAME} > ${S3DIR}/master
+        echo ${FQDN} > ${S3DIR}/master
     fi
     MASTER=$(cat ${S3DIR}/master)
 else
