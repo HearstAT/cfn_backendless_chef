@@ -14,15 +14,14 @@ This requires the use of [backendless_chef](https://github.com/HearstAT/cookbook
 
 ## Requirements
 * Existing VPC
-  * IP Scheme (To create static VIP)
+  * IP Scheme of 172.33.0.0/16 or modify template to support whichever
   * SSH Security Group (Will lookup existing groups in AWS, make sure one exists)
 * Route53 Hosted Domain/Zone
 * Existing SSL Certificate (Loaded into AWS and provide in the params below)
 
 ## Parameters
 * Instance & Network Configuration
-    * BackendInstanceType
-    * FrontendInstanceType
+    * InstanceType
     * KeyName
     * SSLCertificateARN (See [here](http://docs.aws.amazon.com/cli/latest/reference/iam/index.html#cli-aws-iam) on how to get the Cert ARN)
       * `aws iam get-server-certificate --server-certificate-name`
@@ -32,7 +31,6 @@ This requires the use of [backendless_chef](https://github.com/HearstAT/cookbook
     * AvailabilityZoneB
     * AvailabilityZoneC
     * HostedZone
-    * BackendVIP
 * Bucket Configuration
     * UseExistingBucket (True/False, enables using a bucket rather than creating one. Good for re-deploys)
     * ExistingBucket (Bucket Name for the bucket you want to use)
