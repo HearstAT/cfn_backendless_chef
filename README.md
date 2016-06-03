@@ -13,7 +13,8 @@ This requires the use of [backendless_chef](https://github.com/HearstAT/cookbook
 * Autoscaled Frontends that utilize AWS resources on backend to act as a Chef Backend.
 
 ## Diagram
-![Alt Text](https://github.com/hearstat/cfn_backendless_chef/raw/master/backendless_chef.svg)
+![Alt Text](https://github.com/hearstat/cfn_backendless_chef/raw/master/backendless_chef.png)
+![Alt text](backendless_chef.png?raw=true "Overview Diagram")
 
 ## Requirements
 * Existing VPC
