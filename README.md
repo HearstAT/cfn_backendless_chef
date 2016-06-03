@@ -12,6 +12,9 @@ This requires the use of [backendless_chef](https://github.com/HearstAT/cookbook
 ## What's Setup
 * Autoscaled Frontends that utilize AWS resources on backend to act as a Chef Backend.
 
+## Diagram
+![Alt text](backendless_chef.svg?raw=true "Overview Diagram")
+
 ## Requirements
 * Existing VPC
   * IP Scheme of 172.33.0.0/16 or modify template to support whichever
