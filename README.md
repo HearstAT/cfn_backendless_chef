@@ -21,6 +21,8 @@ This requires the use of [backendless_chef](https://github.com/HearstAT/cookbook
   * SSH Security Group (Will lookup existing groups in AWS, make sure one exists)
 * Route53 Hosted Domain/Zone
 * Existing SSL Certificate (Loaded into AWS and provide in the params below)
+* Existing Elasticsearch cluster
+* Existing RDS Postgresql
 
 ## Parameters
 * Instance & Network Configuration
