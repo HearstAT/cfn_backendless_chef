@@ -1,0 +1,1014 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "Cloudformation Backendless Chef v1.1"
+Parameters:
+  HostedZone:
+    Type: String
+    Default: domain.com
+    Description: must match a route53 hosted domain/zone
+
+  BackendSSL:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Choose to use backend ssl in addition to ELB ssl
+
+  ChefSubdomain:
+    Type: String
+    Default: chef-a
+    AllowedValues:
+      - chef-a
+      - chef-b
+      - chef-test
+    Description: subdomain/prefix for chose hosted zone used for staging
+
+  SSLCertificateARN:
+    Type: String
+    Default: 'arn:aws:iam::'
+    Description: SSL Certficate ARN for SSL Certficate
+
+  SignupDisable:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Enter True/False for signup disable (false by default)
+
+  SupportEmail:
+    Type: String
+    Default: atat@hearst.com
+    Description: Enter Support Email for Chef Server (Optional)
+
+  MailHost:
+    Type: String
+    Default: smtp.mailgun.org
+    Description: Enter Mail Host (Optional)
+
+  MailPort:
+    Type: String
+    Default: '587'
+    Description: Enter Port for Mail Host (Optional)
+
+  ChefDir:
+    Type: String
+    Default: "/root/chef"
+    Description: Enter location for client.rb, role.json, & berks functions/creation
+
+  LicenseCount:
+    Type: String
+    Default: '25'
+    Description: Enter how many licenses you have purchased
+
+  DBUser:
+    Type: String
+    Default: ''
+    Description: Enter DB User Name
+
+  DBPassword:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter DB Password
+
+  DBPort:
+    Type: String
+    Default: '5432'
+    Description: Enter DB Port
+
+  DBURL:
+    Type: String
+    Default: ''
+    Description: Enter DB URL or VIP
+
+  ElasticSearchURL:
+    Type: String
+    Default: ''
+    Description: Enter ElasticSearch URL
+
+  UseExistingBucket:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Choose to use an existing bucket from previous installation
+
+  BucketName:
+    Type: String
+    Default: ''
+    Description: Leave Empty! Unless using existing bucket, then enter bucket name here
+
+  ExistingInstall:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Choose only if existing install (i.e.; Previous External DB and Existing S3 Bucket)
+
+  MailCreds:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter Mail Credentials (e.g.; $username:$password)
+
+  NewRelicAppName:
+    Type: String
+    Default: chef_ha_stack
+    Description: Enter New Relic Application Name
+
+  NewRelicLicense:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter New Relic License Key
+
+  NewRelicEnable:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Choose to enable/disable New Relic
+
+  SumologicEnable:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Choose to enable/disable Sumologic
+
+  SumologicAccessID:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter Sumologic Access ID
+
+  SumologicAccessKey:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter Sumologic Access Key
+
+  SumologicPassword:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter Sumologic Password
+
+  S3Dir:
+    Type: String
+    Default: "/opt/chef-s3"
+    Description: Path to mount S3 Bucket to (created during CFN run)
+
+  Cookbook:
+    Type: String
+    Default: backendless_chef
+    Description: Cookbook Name
+
+  CookbookGit:
+    Type: String
+    Default: https://github.com/HearstAT/cookbook_backendless_chef
+    Description: Git Clone URI for Cookbook
+
+  CookbookGitBranch:
+    Type: String
+    Default: master
+    Description: Git Clone Branch
+
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+
+  SSHSecurityGroup:
+    Description: Select Security Group for SSH Access
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: ''
+
+  UserDataScript:
+    Type: String
+    Default: https://raw.githubusercontent.com/HearstAT/cfn_backendless_chef/master/userdata.sh
+    Description: URL for userdata script to run
+
+  BackupEnable:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Select True/False if you wanted to enable backups
+
+  VPC:
+    Description: Choose VPC to use
+    Type: AWS::EC2::VPC::Id
+    Default: ''
+
+  AvailabilityZoneA:
+    Description: Choose Availability Zone to use
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: ''
+
+  AvailabilityZoneB:
+    Description: Choose Availability Zone to use
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: ''
+
+  AvailabilityZoneC:
+    Description: Choose Availability Zone to use
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: ''
+
+  InstanceType:
+    Type: String
+    Default: c4.large
+    AllowedValues:
+      - m3.medium
+      - m3.large
+      - m3.xlarge
+      - m3.2xlarge
+      - c3.large
+      - c3.xlarge
+      - c3.2xlarge
+      - c3.4xlarge
+      - c3.8xlarge
+      - c4.large
+      - c4.xlarge
+      - c4.2xlarge
+      - c4.4xlarge
+      - c4.8xlarge
+      - g2.2xlarge
+      - r3.large
+      - r3.xlarge
+      - r3.2xlarge
+      - r3.4xlarge
+      - r3.8xlarge
+      - i2.xlarge
+      - i2.2xlarge
+      - i2.4xlarge
+      - i2.8xlarge
+      - d2.xlarge
+      - d2.2xlarge
+      - d2.4xlarge
+      - d2.8xlarge
+      - hi1.4xlarge
+      - hs1.8xlarge
+      - cr1.8xlarge
+      - cc2.8xlarge
+      - cg1.4xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Domain Configuration
+      Parameters:
+        - HostedZone
+        - SSLCertificateARN
+        - UseAdditionalDomain
+        - SecondaryDomain
+        - SecondarySSLCertificateARN
+    - Label:
+        default: Bucket Configuration
+      Parameters:
+        - UseExistingBucket
+        - BucketName
+    - Label:
+        default: Re-Deploy Configuration (When Using Existing Items)
+      Parameters:
+        - ExistingInstall
+    - Label:
+        default: Chef Configuration
+      Parameters:
+        - ChefSubdomain
+        - SignupDisable
+        - SupportEmail
+        - LicenseCount
+        - ChefDir
+        - S3Dir
+        - BackupEnable
+    - Label:
+        default: Database Configuration
+      Parameters:
+        - DBUser
+        - DBPassword
+        - DBPort
+        - DBURL
+    - Label:
+        default: ElasticSearch Configuration
+      Parameters:
+        - ElasticSearchURL
+    - Label:
+        default: Mail Configuration (Optional)
+      Parameters:
+        - MailCreds
+        - MailHost
+        - MailPort
+    - Label:
+        default: New Relic Configuration (Optional)
+      Parameters:
+      - NewRelicEnable
+      - NewRelicAppName
+      - NewRelicLicense
+    - Label:
+        default: Sumologic Configuration (Optional)
+      Parameters:
+      - SumologicEnable
+      - SumologicAccessID
+      - SumologicAccessKey
+      - SumologicPassword
+    - Label:
+        default: External Build Items
+      Parameters:
+      - Cookbook
+      - CookbookGit
+      - CookbookGitBranch
+      - UserDataScript
+    - Label:
+        default: Instance & Network Configuration
+      Parameters:
+      - InstanceType
+      - BackendSSL
+      - KeyName
+      - VPC
+      - SSHSecurityGroup
+      - AvailabilityZoneA
+      - AvailabilityZoneB
+      - AvailabilityZoneC
+Mappings:
+  AWSInstanceType2Arch:
+    t2.medium:
+      Arch: HVM64
+    t2.large:
+      Arch: HVM64
+    m1.small:
+      Arch: HVM64
+    m1.medium:
+      Arch: HVM64
+    m1.large:
+      Arch: HVM64
+    m1.xlarge:
+      Arch: HVM64
+    m2.xlarge:
+      Arch: HVM64
+    m2.2xlarge:
+      Arch: HVM64
+    m2.4xlarge:
+      Arch: HVM64
+    m3.medium:
+      Arch: HVM64
+    m3.large:
+      Arch: HVM64
+    m3.xlarge:
+      Arch: HVM64
+    m3.2xlarge:
+      Arch: HVM64
+    m4.large:
+      Arch: HVM64
+    m4.xlarge:
+      Arch: HVM64
+    m4.2xlarge:
+      Arch: HVM64
+    m4.4xlarge:
+      Arch: HVM64
+    m4.10xlarge:
+      Arch: HVM64
+    c1.medium:
+      Arch: HVM64
+    c1.xlarge:
+      Arch: HVM64
+    c3.large:
+      Arch: HVM64
+    c3.xlarge:
+      Arch: HVM64
+    c3.2xlarge:
+      Arch: HVM64
+    c3.4xlarge:
+      Arch: HVM64
+    c3.8xlarge:
+      Arch: HVM64
+    c4.large:
+      Arch: HVM64
+    c4.xlarge:
+      Arch: HVM64
+    c4.2xlarge:
+      Arch: HVM64
+    c4.4xlarge:
+      Arch: HVM64
+    c4.8xlarge:
+      Arch: HVM64
+    g2.2xlarge:
+      Arch: HVM64
+    g2.8xlarge:
+      Arch: HVM64
+    r3.large:
+      Arch: HVM64
+    r3.xlarge:
+      Arch: HVM64
+    r3.2xlarge:
+      Arch: HVM64
+    r3.4xlarge:
+      Arch: HVM64
+    r3.8xlarge:
+      Arch: HVM64
+    i2.xlarge:
+      Arch: HVM64
+    i2.2xlarge:
+      Arch: HVM64
+    i2.4xlarge:
+      Arch: HVM64
+    i2.8xlarge:
+      Arch: HVM64
+    d2.xlarge:
+      Arch: HVM64
+    d2.2xlarge:
+      Arch: HVM64
+    d2.4xlarge:
+      Arch: HVM64
+    d2.8xlarge:
+      Arch: HVM64
+    hi1.4xlarge:
+      Arch: HVM64
+    hs1.8xlarge:
+      Arch: HVM64
+    cr1.8xlarge:
+      Arch: HVM64
+    cc2.8xlarge:
+      Arch: HVM64
+
+  AWSRegionArch2AMI:
+    us-east-1:
+      HVM64: ami-0021766a
+    us-west-2:
+      HVM64: ami-dbfc02bb
+    us-west-1:
+      HVM64: ami-56f59e36
+    eu-west-1:
+      HVM64: ami-a11dbfd2
+    eu-central-1:
+      HVM64: ami-ffaab693
+    ap-northeast-1:
+      HVM64: ami-20b98c4e
+    ap-southeast-1:
+      HVM64: ami-06834165
+    ap-southeast-2:
+      HVM64: ami-7bbee518
+    sa-east-1:
+      HVM64: ami-08bd3a64
+    cn-north-1:
+      HVM64: ami-3378b15e
+
+  SubnetConfig:
+    PublicA:
+      CIDR: 172.33.10.0/24
+    PublicB:
+      CIDR: 172.33.20.0/24
+    PublicC:
+      CIDR: 172.33.30.0/24
+
+Conditions:
+  CreateChefBucket:
+    Fn::Equals:
+      - Ref: UseExistingBucket
+      - 'false'
+  BackendSSLCon:
+    Fn::Equals:
+      - Ref: BackendSSL
+      - 'true'
+
+Resources:
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      AvailabilityZone:
+        Ref: AvailabilityZoneA
+      CidrBlock:
+        Fn::FindInMap:
+        - SubnetConfig
+        - PublicA
+        - CIDR
+      Tags:
+      - Key: Name
+        Value: Chef-Public-Subnet
+      - Key: Application
+        Value:
+          Ref: AWS::StackId
+      - Key: Network
+        Value: Public
+  SubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      AvailabilityZone:
+        Ref: AvailabilityZoneB
+      CidrBlock:
+        Fn::FindInMap:
+        - SubnetConfig
+        - PublicB
+        - CIDR
+      Tags:
+      - Key: Name
+        Value: Chef-Public-Subnet
+      - Key: Application
+        Value:
+          Ref: AWS::StackId
+      - Key: Network
+        Value: Public
+  SubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Ref: VPC
+      AvailabilityZone:
+        Ref: AvailabilityZoneC
+      CidrBlock:
+        Fn::FindInMap:
+        - SubnetConfig
+        - PublicC
+        - CIDR
+      Tags:
+      - Key: Name
+        Value: Chef-Public-Subnet
+      - Key: Application
+        Value:
+          Ref: AWS::StackId
+      - Key: Network
+        Value: Public
+  ChefBucket:
+    Type: AWS::S3::Bucket
+    Condition: CreateChefBucket
+    DeletionPolicy: Retain
+    Properties:
+      AccessControl: Private
+  ChefRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+  RolePolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: chef-s3
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - s3:*
+          Resource:
+          - Fn::Join:
+            - ''
+            - - 'arn:aws:s3:::'
+              - Fn::If:
+                - CreateChefBucket
+                - Ref: ChefBucket
+                - Ref: BucketName
+          - Fn::Join:
+            - ''
+            - - 'arn:aws:s3:::'
+              - Fn::If:
+                - CreateChefBucket
+                - Ref: ChefBucket
+                - Ref: BucketName
+              - "/*"
+        - Effect: Allow
+          Action:
+          - s3:List*
+          Resource: arn:aws:s3:::*
+      Roles:
+      - Ref: ChefRole
+  ChefInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+      - Ref: ChefRole
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Setup Ingress/Egress for Chef Frontend Load Balancer
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+            FromPort: '80'
+            ToPort: '80'
+            CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+            FromPort: '443'
+            ToPort: '443'
+            CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+            FromPort: '0'
+            ToPort: '65535'
+            CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: Name
+        Value: Chef-ELB-SecurityGroup
+  PrimaryElasticLoadBalancer:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      Subnets:
+      - Ref: SubnetA
+      - Ref: SubnetB
+      - Ref: SubnetC
+      SecurityGroups:
+      - Ref: LoadBalancerSecurityGroup
+      LBCookieStickinessPolicy:
+      - PolicyName: PublicELBCookieStickinessPolicy
+        CookieExpirationPeriod: '3600'
+      Listeners:
+      - InstancePort:
+          Fn::If:
+          - BackendSSLCon
+          - '443'
+          - '80'
+        LoadBalancerPort: '443'
+        InstanceProtocol: HTTPS
+        Protocol: HTTPS
+        PolicyNames:
+        - PublicELBCookieStickinessPolicy
+        SSLCertificateId:
+          Ref: SSLCertificateARN
+      HealthCheck:
+        Target:
+          Fn::If:
+          - BackendSSLCon
+          - HTTPS:443/humans.txt
+          - HTTP:80/humans.txt
+        HealthyThreshold: '2'
+        UnhealthyThreshold: '10'
+        Interval: '90'
+        Timeout: '60'
+      Tags:
+      - Key: Name
+        Value: Chef-ELB
+  SecondaryElasticLoadBalancer:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Condition: SecondaryDomainCon
+    Properties:
+      Subnets:
+      - Ref: SubnetA
+      - Ref: SubnetB
+      - Ref: SubnetC
+      SecurityGroups:
+      - Ref: LoadBalancerSecurityGroup
+      LBCookieStickinessPolicy:
+      - PolicyName: PublicELBCookieStickinessPolicy
+        CookieExpirationPeriod: '3600'
+      Listeners:
+      - InstancePort:
+          Fn::If:
+          - BackendSSLCon
+          - '443'
+          - '80'
+        LoadBalancerPort: '443'
+        InstanceProtocol: HTTPS
+        Protocol: HTTPS
+        PolicyNames:
+        - PublicELBCookieStickinessPolicy
+        SSLCertificateId:
+          Ref: SecondarySSLCertificateARN
+      HealthCheck:
+        Target:
+          Fn::If:
+          - BackendSSLCon
+          - HTTPS:443/humans.txt
+          - HTTP:80/humans.txt
+        HealthyThreshold: '2'
+        UnhealthyThreshold: '10'
+        Interval: '90'
+        Timeout: '60'
+      Tags:
+      - Key: Name
+        Value: Chef-Secondary-ELB
+  ChefDNS:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneName:
+        Fn::Join:
+        - ''
+        - - Ref: HostedZone
+          - "."
+      Comment: Zone apex alias targeted to myELB LoadBalancer.
+      RecordSets:
+      - Name:
+          Fn::Join:
+          - ''
+          - - Ref: ChefSubdomain
+            - "."
+            - Ref: HostedZone
+            - "."
+        Type: A
+        AliasTarget:
+          HostedZoneId:
+            Fn::GetAtt:
+            - PrimaryElasticLoadBalancer
+            - CanonicalHostedZoneNameID
+          DNSName:
+            Fn::GetAtt:
+            - PrimaryElasticLoadBalancer
+            - CanonicalHostedZoneName
+  SecondaryChefDNS:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneName:
+        Fn::Join:
+        - ''
+        - - Ref: HostedZone
+          - "."
+      Comment: Zone apex alias targeted to myELB LoadBalancer.
+      RecordSets:
+      - Name:
+          Fn::Join:
+          - ''
+          - - Ref: ChefSubdomain
+            - "-secondary"
+            - "."
+            - Ref: HostedZone
+            - "."
+        Type: A
+        AliasTarget:
+          HostedZoneId:
+            Fn::GetAtt:
+            - SecondaryElasticLoadBalancer
+            - CanonicalHostedZoneNameID
+          DNSName:
+            Fn::GetAtt:
+            - SecondaryElasticLoadBalancer
+            - CanonicalHostedZoneName
+  FrontendSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Setup Ingress/Egress for Chef Frontend
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        SourceSecurityGroupId:
+          Ref: LoadBalancerSecurityGroup
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        SourceSecurityGroupId:
+          Ref: LoadBalancerSecurityGroup
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '9090'
+        SourceSecurityGroupId:
+          Ref: LoadBalancerSecurityGroup
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '9090'
+        SourceSecurityGroupId:
+          Ref: LoadBalancerSecurityGroup
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        SourceSecurityGroupId:
+          Ref: SSHSecurityGroup
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: '0'
+        ToPort: '65535'
+        CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: Name
+        Value: ChefFrontend-Security-Group
+  AutoScaleGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Condition: SingleDomainCon
+    Properties:
+      AvailabilityZones:
+        Fn::GetAZs: ''
+      VPCZoneIdentifier:
+      - Ref: SubnetA
+      - Ref: SubnetB
+      - Ref: SubnetC
+      LaunchConfigurationName:
+        Ref: ServerLaunchConfig
+      MinSize: '2'
+      MaxSize: '3'
+      LoadBalancerNames:
+      - Ref: PrimaryElasticLoadBalancer
+      - Ref: SecondaryElasticLoadBalancer
+      Tags:
+      - Key: Name
+        Value: Chef-Scale-Group
+        PropagateAtLaunch: 'true'
+  SecondaryAutoScaleGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Condition: SecondaryDomainCon
+    Properties:
+      AvailabilityZones:
+        Fn::GetAZs: ''
+      VPCZoneIdentifier:
+      - Ref: SubnetA
+      - Ref: SubnetB
+      - Ref: SubnetC
+      LaunchConfigurationName:
+        Ref: ServerLaunchConfig
+      MinSize: '1'
+      DesiredCapacity: '2'
+      MaxSize: '3'
+      LoadBalancerNames:
+      - Ref: PrimaryElasticLoadBalancer
+      - Ref: SecondaryElasticLoadBalancer
+      Tags:
+      - Key: Name
+        Value: Chef-Scale-Group
+        PropagateAtLaunch: 'true'
+  ServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId:
+        Fn::FindInMap:
+        - AWSRegionArch2AMI
+        - Ref: AWS::Region
+        - Fn::FindInMap:
+          - AWSInstanceType2Arch
+          - Ref: InstanceType
+          - Arch
+      AssociatePublicIpAddress: 'true'
+      InstanceType:
+        Ref: InstanceType
+      SecurityGroups:
+      - Ref: FrontendSecurityGroup
+      - Ref: SSHSecurityGroup
+      KeyName:
+        Ref: KeyName
+      BlockDeviceMappings:
+      - DeviceName: "/dev/sda1"
+        Ebs:
+          VolumeSize: '15'
+      IamInstanceProfile:
+        Ref: ChefInstanceProfile
+      UserData:
+        Fn::Base64:
+          Fn::Join:
+          - ''
+          - - "#!/bin/bash -xev\n"
+            - 'apt-get update && apt-get -y upgrade
+
+'
+            - 'apt-get install -y wget curl python-setuptools python-pip git
+
+'
+            - "# Helper function to set wait timer\n"
+            - 'function error_exit
+
+'
+            - "{\n"
+            - '  /usr/local/bin/cfn-signal -e 1 -r "$1" '''
+            - Ref: WaitHandle
+            - "'\n"
+            - "  exit 1\n"
+            - " }\n"
+            - 'export -f error_exit
+
+'
+            - 'curl -Sl '
+            - Ref: UserDataScript
+            - " -o /tmp/userdata.sh\n"
+            - 'chmod +x /tmp/userdata.sh
+
+'
+            - export REGION='
+            - Ref: AWS::Region
+            - "'\n"
+            - export IAM_ROLE='
+            - Ref: ChefRole
+            - "'\n"
+            - export DOMAIN='
+            - Ref: HostedZone
+            - "'\n"
+            - export SECONDARY_DOMAIN='
+            - Ref: SecondaryDomain
+            - "'\n"
+            - export SUBDOMAIN='
+            - Ref: ChefSubdomain
+            - "'\n"
+            - export BUCKET='
+            - Fn::If:
+              - CreateChefBucket
+              - Ref: ChefBucket
+              - Ref: BucketName
+            - "'\n"
+            - export DB_USER='
+            - Ref: DBUser
+            - "'\n"
+            - export DB_PASSWORD='
+            - Ref: DBPassword
+            - "'\n"
+            - export DB_PORT='
+            - Ref: DBPort
+            - "'\n"
+            - export DB_URL='
+            - Ref: DBURL
+            - "'\n"
+            - export SEARCH_URL='
+            - Ref: ElasticSearchURL
+            - "'\n"
+            - export COOKBOOK='
+            - Ref: Cookbook
+            - "'\n"
+            - export COOKBOOK_GIT='
+            - Ref: CookbookGit
+            - "'\n"
+            - export COOKBOOK_BRANCH='
+            - Ref: CookbookGitBranch
+            - "'\n"
+            - export ENABLE_SSL='
+            - Ref: BackendSSL
+            - "'\n"
+            - export BACKUP_ENABLE='
+            - Ref: BackupEnable
+            - "'\n"
+            - export EXISTING_INSTALL='
+            - Ref: ExistingInstall
+            - "'\n"
+            - export CHEFDIR='
+            - Ref: ChefDir
+            - "'\n"
+            - export S3DIR='
+            - Ref: S3Dir
+            - "'\n"
+            - export SIGNUP_DISABLE='
+            - Ref: SignupDisable
+            - "'\n"
+            - export SUPPORT_EMAIL='
+            - Ref: SupportEmail
+            - "'\n"
+            - 'set +xv
+
+'
+            - export NR_LICENSE='
+            - Ref: NewRelicLicense
+            - "'\n"
+            - export NR_APPNAME='
+            - Ref: NewRelicAppName
+            - "'\n"
+            - export NR_ENABLE='
+            - Ref: NewRelicEnable
+            - "'\n"
+            - export SUMO_ENABLE='
+            - Ref: SumologicEnable
+            - "'\n"
+            - export SUMO_ACCESS_ID='
+            - Ref: SumologicAccessID
+            - "'\n"
+            - export SUMO_ACCESS_KEY='
+            - Ref: SumologicAccessKey
+            - "'\n"
+            - export SUMO_PASSWORD='
+            - Ref: SumologicPassword
+            - "'\n"
+            - export MAIL_CREDS='
+            - Ref: MailCreds
+            - "'\n"
+            - 'set -xv
+
+'
+            - export MAIL_HOST='
+            - Ref: MailHost
+            - "'\n"
+            - export MAIL_PORT='
+            - Ref: MailPort
+            - "'\n"
+            - export LICENSE_COUNT='
+            - Ref: LicenseCount
+            - "'\n"
+            - "/tmp/userdata.sh\n"
+            - "# All is well so signal success and let CF know wait function is complete\n"
+            - /usr/local/bin/cfn-signal -e 0 -r "Server setup complete" '
+            - Ref: WaitHandle
+            - "'\n"
+            - rm -f /tmp/userdata.sh
+  WaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+  WaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    DependsOn: ServerLaunchConfig
+    Properties:
+      Handle:
+        Ref: WaitHandle
+      Timeout: '2300'
+Outputs: {}
