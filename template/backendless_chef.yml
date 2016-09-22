@@ -269,9 +269,6 @@ Metadata:
       Parameters:
         - HostedZone
         - SSLCertificateARN
-        - UseAdditionalDomain
-        - SecondaryDomain
-        - SecondarySSLCertificateARN
     - Label:
         default: Bucket Configuration
       Parameters:
@@ -311,34 +308,34 @@ Metadata:
     - Label:
         default: New Relic Configuration (Optional)
       Parameters:
-      - NewRelicEnable
-      - NewRelicAppName
-      - NewRelicLicense
+        - NewRelicEnable
+        - NewRelicAppName
+        - NewRelicLicense
     - Label:
         default: Sumologic Configuration (Optional)
       Parameters:
-      - SumologicEnable
-      - SumologicAccessID
-      - SumologicAccessKey
-      - SumologicPassword
+        - SumologicEnable
+        - SumologicAccessID
+        - SumologicAccessKey
+        - SumologicPassword
     - Label:
         default: External Build Items
       Parameters:
-      - Cookbook
-      - CookbookGit
-      - CookbookGitBranch
-      - UserDataScript
+        - Cookbook
+        - CookbookGit
+        - CookbookGitBranch
+        - UserDataScript
     - Label:
         default: Instance & Network Configuration
       Parameters:
-      - InstanceType
-      - BackendSSL
-      - KeyName
-      - VPC
-      - SSHSecurityGroup
-      - AvailabilityZoneA
-      - AvailabilityZoneB
-      - AvailabilityZoneC
+        - InstanceType
+        - BackendSSL
+        - KeyName
+        - VPC
+        - SSHSecurityGroup
+        - AvailabilityZoneA
+        - AvailabilityZoneB
+        - AvailabilityZoneC
 Mappings:
   AWSInstanceType2Arch:
     t2.medium:
@@ -477,8 +474,8 @@ Conditions:
       - 'false'
   BackendSSLCon:
     Fn::Equals:
-      - Ref: BackendSSL
-      - 'true'
+        - Ref: BackendSSL
+        - 'true'
 
 Resources:
   SubnetA:
@@ -490,17 +487,17 @@ Resources:
         Ref: AvailabilityZoneA
       CidrBlock:
         Fn::FindInMap:
-        - SubnetConfig
-        - PublicA
-        - CIDR
+          - SubnetConfig
+          - PublicA
+          - CIDR
       Tags:
-      - Key: Name
-        Value: Chef-Public-Subnet
-      - Key: Application
-        Value:
-          Ref: AWS::StackId
-      - Key: Network
-        Value: Public
+        - Key: Name
+          Value: Chef-Public-Subnet
+        - Key: Application
+          Value:
+            Ref: AWS::StackId
+        - Key: Network
+          Value: Public
   SubnetB:
     Type: AWS::EC2::Subnet
     Properties:
@@ -510,17 +507,17 @@ Resources:
         Ref: AvailabilityZoneB
       CidrBlock:
         Fn::FindInMap:
-        - SubnetConfig
-        - PublicB
-        - CIDR
+          - SubnetConfig
+          - PublicB
+          - CIDR
       Tags:
-      - Key: Name
-        Value: Chef-Public-Subnet
-      - Key: Application
-        Value:
-          Ref: AWS::StackId
-      - Key: Network
-        Value: Public
+        - Key: Name
+          Value: Chef-Public-Subnet
+        - Key: Application
+          Value:
+            Ref: AWS::StackId
+        - Key: Network
+          Value: Public
   SubnetC:
     Type: AWS::EC2::Subnet
     Properties:
@@ -553,12 +550,12 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
+          - Effect: Allow
           Principal:
             Service:
-            - ec2.amazonaws.com
+              - ec2.amazonaws.com
           Action:
-          - sts:AssumeRole
+            - sts:AssumeRole
       Path: "/"
   RolePolicies:
     Type: AWS::IAM::Policy
@@ -567,29 +564,29 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-        - Effect: Allow
-          Action:
-          - s3:*
-          Resource:
-          - Fn::Join:
-            - ''
-            - - 'arn:aws:s3:::'
-              - Fn::If:
-                - CreateChefBucket
-                - Ref: ChefBucket
-                - Ref: BucketName
-          - Fn::Join:
-            - ''
-            - - 'arn:aws:s3:::'
-              - Fn::If:
-                - CreateChefBucket
-                - Ref: ChefBucket
-                - Ref: BucketName
-              - "/*"
-        - Effect: Allow
-          Action:
-          - s3:List*
-          Resource: arn:aws:s3:::*
+          - Effect: Allow
+            Action:
+            - s3:*
+            Resource:
+            - Fn::Join:
+              - ''
+              - - 'arn:aws:s3:::'
+                - Fn::If:
+                  - CreateChefBucket
+                  - Ref: ChefBucket
+                  - Ref: BucketName
+            - Fn::Join:
+              - ''
+              - - 'arn:aws:s3:::'
+                - Fn::If:
+                  - CreateChefBucket
+                  - Ref: ChefBucket
+                  - Ref: BucketName
+                - "/*"
+          - Effect: Allow
+            Action:
+            - s3:List*
+            Resource: arn:aws:s3:::*
       Roles:
       - Ref: ChefRole
   ChefInstanceProfile:
@@ -625,55 +622,55 @@ Resources:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
       Subnets:
-      - Ref: SubnetA
-      - Ref: SubnetB
-      - Ref: SubnetC
+        - Ref: SubnetA
+        - Ref: SubnetB
+        - Ref: SubnetC
       SecurityGroups:
-      - Ref: LoadBalancerSecurityGroup
+        - Ref: LoadBalancerSecurityGroup
       LBCookieStickinessPolicy:
-      - PolicyName: PublicELBCookieStickinessPolicy
-        CookieExpirationPeriod: '3600'
+        - PolicyName: PublicELBCookieStickinessPolicy
+          CookieExpirationPeriod: '3600'
       Listeners:
-      - InstancePort:
+        - InstancePort:
           Fn::If:
-          - BackendSSLCon
-          - '443'
-          - '80'
+            - BackendSSLCon
+            - '443'
+            - '80'
         LoadBalancerPort: '443'
         InstanceProtocol: HTTPS
         Protocol: HTTPS
         PolicyNames:
-        - PublicELBCookieStickinessPolicy
+          - PublicELBCookieStickinessPolicy
         SSLCertificateId:
           Ref: SSLCertificateARN
       HealthCheck:
         Target:
           Fn::If:
-          - BackendSSLCon
-          - HTTPS:443/humans.txt
-          - HTTP:80/humans.txt
+            - BackendSSLCon
+            - HTTPS:443/humans.txt
+            - HTTP:80/humans.txt
         HealthyThreshold: '2'
         UnhealthyThreshold: '10'
         Interval: '90'
         Timeout: '60'
       Tags:
-      - Key: Name
-        Value: Chef-ELB
+        - Key: Name
+          Value: Chef-ELB
   SecondaryElasticLoadBalancer:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Condition: SecondaryDomainCon
     Properties:
       Subnets:
-      - Ref: SubnetA
-      - Ref: SubnetB
-      - Ref: SubnetC
+        - Ref: SubnetA
+        - Ref: SubnetB
+        - Ref: SubnetC
       SecurityGroups:
-      - Ref: LoadBalancerSecurityGroup
+        - Ref: LoadBalancerSecurityGroup
       LBCookieStickinessPolicy:
-      - PolicyName: PublicELBCookieStickinessPolicy
+        - PolicyName: PublicELBCookieStickinessPolicy
         CookieExpirationPeriod: '3600'
       Listeners:
-      - InstancePort:
+        - InstancePort:
           Fn::If:
           - BackendSSLCon
           - '443'
@@ -735,7 +732,7 @@ Resources:
           - "."
       Comment: Zone apex alias targeted to myELB LoadBalancer.
       RecordSets:
-      - Name:
+        - Name:
           Fn::Join:
           - ''
           - - Ref: ChefSubdomain
@@ -760,39 +757,39 @@ Resources:
       VpcId:
         Ref: VPC
       SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: '80'
-        ToPort: '80'
-        SourceSecurityGroupId:
-          Ref: LoadBalancerSecurityGroup
-      - IpProtocol: tcp
-        FromPort: '443'
-        ToPort: '443'
-        SourceSecurityGroupId:
-          Ref: LoadBalancerSecurityGroup
-      - IpProtocol: tcp
-        FromPort: '443'
-        ToPort: '9090'
-        SourceSecurityGroupId:
-          Ref: LoadBalancerSecurityGroup
-      - IpProtocol: tcp
-        FromPort: '80'
-        ToPort: '9090'
-        SourceSecurityGroupId:
-          Ref: LoadBalancerSecurityGroup
-      - IpProtocol: tcp
-        FromPort: '22'
-        ToPort: '22'
-        SourceSecurityGroupId:
-          Ref: SSHSecurityGroup
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          SourceSecurityGroupId:
+            Ref: LoadBalancerSecurityGroup
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          SourceSecurityGroupId:
+            Ref: LoadBalancerSecurityGroup
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '9090'
+          SourceSecurityGroupId:
+            Ref: LoadBalancerSecurityGroup
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '9090'
+          SourceSecurityGroupId:
+            Ref: LoadBalancerSecurityGroup
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          SourceSecurityGroupId:
+            Ref: SSHSecurityGroup
       SecurityGroupEgress:
-      - IpProtocol: tcp
-        FromPort: '0'
-        ToPort: '65535'
-        CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '0'
+          ToPort: '65535'
+          CidrIp: 0.0.0.0/0
       Tags:
-      - Key: Name
-        Value: ChefFrontend-Security-Group
+        - Key: Name
+          Value: ChefFrontend-Security-Group
   AutoScaleGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Condition: SingleDomainCon
@@ -821,21 +818,21 @@ Resources:
       AvailabilityZones:
         Fn::GetAZs: ''
       VPCZoneIdentifier:
-      - Ref: SubnetA
-      - Ref: SubnetB
-      - Ref: SubnetC
+        - Ref: SubnetA
+        - Ref: SubnetB
+        - Ref: SubnetC
       LaunchConfigurationName:
         Ref: ServerLaunchConfig
       MinSize: '1'
       DesiredCapacity: '2'
       MaxSize: '3'
       LoadBalancerNames:
-      - Ref: PrimaryElasticLoadBalancer
-      - Ref: SecondaryElasticLoadBalancer
+        - Ref: PrimaryElasticLoadBalancer
+        - Ref: SecondaryElasticLoadBalancer
       Tags:
-      - Key: Name
-        Value: Chef-Scale-Group
-        PropagateAtLaunch: 'true'
+        - Key: Name
+          Value: Chef-Scale-Group
+          PropagateAtLaunch: 'true'
   ServerLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
