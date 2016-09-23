@@ -672,46 +672,46 @@ Resources:
       Listeners:
         - InstancePort:
           Fn::If:
-          - BackendSSLCon
-          - '443'
-          - '80'
+            - BackendSSLCon
+            - '443'
+            - '80'
         LoadBalancerPort: '443'
         InstanceProtocol: HTTPS
         Protocol: HTTPS
         PolicyNames:
-        - PublicELBCookieStickinessPolicy
+          - PublicELBCookieStickinessPolicy
         SSLCertificateId:
           Ref: SecondarySSLCertificateARN
       HealthCheck:
         Target:
           Fn::If:
-          - BackendSSLCon
-          - HTTPS:443/humans.txt
-          - HTTP:80/humans.txt
+            - BackendSSLCon
+            - HTTPS:443/humans.txt
+            - HTTP:80/humans.txt
         HealthyThreshold: '2'
         UnhealthyThreshold: '10'
         Interval: '90'
         Timeout: '60'
       Tags:
-      - Key: Name
-        Value: Chef-Secondary-ELB
+        - Key: Name
+          Value: Chef-Secondary-ELB
   ChefDNS:
     Type: AWS::Route53::RecordSetGroup
     Properties:
       HostedZoneName:
         Fn::Join:
-        - ''
-        - - Ref: HostedZone
-          - "."
+          - ''
+          - - Ref: HostedZone
+            - "."
       Comment: Zone apex alias targeted to myELB LoadBalancer.
       RecordSets:
-      - Name:
+        - Name:
           Fn::Join:
-          - ''
-          - - Ref: ChefSubdomain
-            - "."
-            - Ref: HostedZone
-            - "."
+            - ''
+            - - Ref: ChefSubdomain
+              - "."
+              - Ref: HostedZone
+              - "."
         Type: A
         AliasTarget:
           HostedZoneId:
@@ -727,29 +727,29 @@ Resources:
     Properties:
       HostedZoneName:
         Fn::Join:
-        - ''
-        - - Ref: HostedZone
-          - "."
+          - ''
+          - Ref: HostedZone
+            - "."
       Comment: Zone apex alias targeted to myELB LoadBalancer.
       RecordSets:
         - Name:
           Fn::Join:
-          - ''
-          - - Ref: ChefSubdomain
-            - "-secondary"
-            - "."
-            - Ref: HostedZone
-            - "."
+            - ''
+            - - Ref: ChefSubdomain
+              - "-secondary"
+              - "."
+              - Ref: HostedZone
+              - "."
         Type: A
         AliasTarget:
           HostedZoneId:
             Fn::GetAtt:
-            - SecondaryElasticLoadBalancer
-            - CanonicalHostedZoneNameID
+              - SecondaryElasticLoadBalancer
+              - CanonicalHostedZoneNameID
           DNSName:
             Fn::GetAtt:
-            - SecondaryElasticLoadBalancer
-            - CanonicalHostedZoneName
+              - SecondaryElasticLoadBalancer
+              - CanonicalHostedZoneName
   FrontendSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -859,146 +859,9 @@ Resources:
       IamInstanceProfile:
         Ref: ChefInstanceProfile
       UserData:
-        Fn::Base64:
-          Fn::Join:
-          - ''
-          - - "#!/bin/bash -xev\n"
-            - 'apt-get update && apt-get -y upgrade
-
-'
-            - 'apt-get install -y wget curl python-setuptools python-pip git
-
-'
-            - "# Helper function to set wait timer\n"
-            - 'function error_exit
-
-'
-            - "{\n"
-            - '  /usr/local/bin/cfn-signal -e 1 -r "$1" '''
-            - Ref: WaitHandle
-            - "'\n"
-            - "  exit 1\n"
-            - " }\n"
-            - 'export -f error_exit
-
-'
-            - 'curl -Sl '
-            - Ref: UserDataScript
-            - " -o /tmp/userdata.sh\n"
-            - 'chmod +x /tmp/userdata.sh
-
-'
-            - export REGION='
-            - Ref: AWS::Region
-            - "'\n"
-            - export IAM_ROLE='
-            - Ref: ChefRole
-            - "'\n"
-            - export DOMAIN='
-            - Ref: HostedZone
-            - "'\n"
-            - export SECONDARY_DOMAIN='
-            - Ref: SecondaryDomain
-            - "'\n"
-            - export SUBDOMAIN='
-            - Ref: ChefSubdomain
-            - "'\n"
-            - export BUCKET='
-            - Fn::If:
-              - CreateChefBucket
-              - Ref: ChefBucket
-              - Ref: BucketName
-            - "'\n"
-            - export DB_USER='
-            - Ref: DBUser
-            - "'\n"
-            - export DB_PASSWORD='
-            - Ref: DBPassword
-            - "'\n"
-            - export DB_PORT='
-            - Ref: DBPort
-            - "'\n"
-            - export DB_URL='
-            - Ref: DBURL
-            - "'\n"
-            - export SEARCH_URL='
-            - Ref: ElasticSearchURL
-            - "'\n"
-            - export COOKBOOK='
-            - Ref: Cookbook
-            - "'\n"
-            - export COOKBOOK_GIT='
-            - Ref: CookbookGit
-            - "'\n"
-            - export COOKBOOK_BRANCH='
-            - Ref: CookbookGitBranch
-            - "'\n"
-            - export ENABLE_SSL='
-            - Ref: BackendSSL
-            - "'\n"
-            - export BACKUP_ENABLE='
-            - Ref: BackupEnable
-            - "'\n"
-            - export EXISTING_INSTALL='
-            - Ref: ExistingInstall
-            - "'\n"
-            - export CHEFDIR='
-            - Ref: ChefDir
-            - "'\n"
-            - export S3DIR='
-            - Ref: S3Dir
-            - "'\n"
-            - export SIGNUP_DISABLE='
-            - Ref: SignupDisable
-            - "'\n"
-            - export SUPPORT_EMAIL='
-            - Ref: SupportEmail
-            - "'\n"
-            - 'set +xv
-
-'
-            - export NR_LICENSE='
-            - Ref: NewRelicLicense
-            - "'\n"
-            - export NR_APPNAME='
-            - Ref: NewRelicAppName
-            - "'\n"
-            - export NR_ENABLE='
-            - Ref: NewRelicEnable
-            - "'\n"
-            - export SUMO_ENABLE='
-            - Ref: SumologicEnable
-            - "'\n"
-            - export SUMO_ACCESS_ID='
-            - Ref: SumologicAccessID
-            - "'\n"
-            - export SUMO_ACCESS_KEY='
-            - Ref: SumologicAccessKey
-            - "'\n"
-            - export SUMO_PASSWORD='
-            - Ref: SumologicPassword
-            - "'\n"
-            - export MAIL_CREDS='
-            - Ref: MailCreds
-            - "'\n"
-            - 'set -xv
-
-'
-            - export MAIL_HOST='
-            - Ref: MailHost
-            - "'\n"
-            - export MAIL_PORT='
-            - Ref: MailPort
-            - "'\n"
-            - export LICENSE_COUNT='
-            - Ref: LicenseCount
-            - "'\n"
-            - "/tmp/userdata.sh\n"
-            - "# All is well so signal success and let CF know wait function is complete\n"
-            - /usr/local/bin/cfn-signal -e 0 -r "Server setup complete" '
-            - Ref: WaitHandle
-            - "'\n"
-            - rm -f /tmp/userdata.sh
+        "Fn::Base64":
+          !Sub |
+            # Bash Goes here
   WaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
   WaitCondition:
