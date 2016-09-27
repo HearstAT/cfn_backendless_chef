@@ -671,14 +671,15 @@ Resources:
 
   AutoScaleGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
-    Condition: SingleDomainCon
     Properties:
       AvailabilityZones:
-        Fn::GetAZs: ''
+        - !Ref AvailabilityZoneA
+        - !Ref AvailabilityZoneB
+        - !Ref AvailabilityZoneC
       VPCZoneIdentifier:
-      - !Ref SubnetA
-      - !Ref SubnetB
-      - !Ref SubnetC
+        - !Ref SubnetA
+        - !Ref SubnetB
+        - !Ref SubnetC
       LaunchConfigurationName: !Ref ServerLaunchConfig
       MinSize: '2'
       MaxSize: '3'
@@ -692,24 +693,17 @@ Resources:
   ServerLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
-      ImageId:
-        Fn::FindInMap:
-        - AWSRegionArch2AMI
-        - !Ref AWS::Region
-        - Fn::FindInMap:
-          - AWSInstanceType2Arch
-          - !Ref InstanceType
-          - Arch
+      ImageId: !FindInMap [ AWSRegionArch2AMI, !Ref AWS::Region ] !FindInMap [ AWSInstanceType2Arch, !Ref InstanceType, Arch ]
       AssociatePublicIpAddress: 'true'
       InstanceType: !Ref InstanceType
       SecurityGroups:
-      - !Ref FrontendSecurityGroup
-      - !Ref SSHSecurityGroup
+        - !Ref FrontendSecurityGroup
+        - !Ref SSHSecurityGroup
       KeyName: !Ref KeyName
       BlockDeviceMappings:
-      - DeviceName: "/dev/sda1"
-        Ebs:
-          VolumeSize: '15'
+        - DeviceName: "/dev/sda1"
+          Ebs:
+            VolumeSize: '15'
       IamInstanceProfile: !Ref ChefInstanceProfile
       UserData:
         "Fn::Base64": !Sub |
@@ -938,4 +932,3 @@ Resources:
     Properties:
       Handle:  !Ref WaitHandle
       Timeout: '2300'
-Outputs: {}
