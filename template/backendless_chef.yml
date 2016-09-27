@@ -348,107 +348,7 @@ Metadata:
         - AvailabilityZoneB
         - AvailabilityZoneC
 Mappings:
-  AWSInstanceType2Arch:
-    t2.medium:
-      Arch: HVM64
-    t2.large:
-      Arch: HVM64
-    m1.small:
-      Arch: HVM64
-    m1.medium:
-      Arch: HVM64
-    m1.large:
-      Arch: HVM64
-    m1.xlarge:
-      Arch: HVM64
-    m2.xlarge:
-      Arch: HVM64
-    m2.2xlarge:
-      Arch: HVM64
-    m2.4xlarge:
-      Arch: HVM64
-    m3.medium:
-      Arch: HVM64
-    m3.large:
-      Arch: HVM64
-    m3.xlarge:
-      Arch: HVM64
-    m3.2xlarge:
-      Arch: HVM64
-    m4.large:
-      Arch: HVM64
-    m4.xlarge:
-      Arch: HVM64
-    m4.2xlarge:
-      Arch: HVM64
-    m4.4xlarge:
-      Arch: HVM64
-    m4.10xlarge:
-      Arch: HVM64
-    c1.medium:
-      Arch: HVM64
-    c1.xlarge:
-      Arch: HVM64
-    c3.large:
-      Arch: HVM64
-    c3.xlarge:
-      Arch: HVM64
-    c3.2xlarge:
-      Arch: HVM64
-    c3.4xlarge:
-      Arch: HVM64
-    c3.8xlarge:
-      Arch: HVM64
-    c4.large:
-      Arch: HVM64
-    c4.xlarge:
-      Arch: HVM64
-    c4.2xlarge:
-      Arch: HVM64
-    c4.4xlarge:
-      Arch: HVM64
-    c4.8xlarge:
-      Arch: HVM64
-    g2.2xlarge:
-      Arch: HVM64
-    g2.8xlarge:
-      Arch: HVM64
-    r3.large:
-      Arch: HVM64
-    r3.xlarge:
-      Arch: HVM64
-    r3.2xlarge:
-      Arch: HVM64
-    r3.4xlarge:
-      Arch: HVM64
-    r3.8xlarge:
-      Arch: HVM64
-    i2.xlarge:
-      Arch: HVM64
-    i2.2xlarge:
-      Arch: HVM64
-    i2.4xlarge:
-      Arch: HVM64
-    i2.8xlarge:
-      Arch: HVM64
-    d2.xlarge:
-      Arch: HVM64
-    d2.2xlarge:
-      Arch: HVM64
-    d2.4xlarge:
-      Arch: HVM64
-    d2.8xlarge:
-      Arch: HVM64
-    hi1.4xlarge:
-      Arch: HVM64
-    hs1.8xlarge:
-      Arch: HVM64
-    cr1.8xlarge:
-      Arch: HVM64
-    cc2.8xlarge:
-      Arch: HVM64
-
-  AWSRegionArch2AMI:
+  RegionMap:
     us-east-1:
       HVM64: ami-0021766a
     us-west-2:
@@ -480,9 +380,9 @@ Mappings:
 
 Conditions:
   CreateChefBucket:
-    !Equals: [ !Ref UseExistingBucket, false ]
+    !Equals [ !Ref UseExistingBucket, false ]
   BackendSSLCon:
-    !Equals: [ !Ref BackendSSL, true ]
+    !Equals [ !Ref BackendSSL, true ]
 
 Resources:
   SubnetA:
@@ -502,7 +402,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      AvailabilityZone: !!Ref AvailabilityZoneB
+      AvailabilityZone: !Ref AvailabilityZoneB
       CidrBlock: !FindInMap [ SubnetConfig, PublicB, CIDR ]
       Tags:
         - Key: Name
@@ -536,12 +436,13 @@ Resources:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: Allow
-          Principal:
-            Service:
-              - ec2.amazonaws.com
-          Action:
-            - sts:AssumeRole
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
       Path: "/"
   RolePolicies:
     Type: AWS::IAM::Policy
@@ -578,18 +479,18 @@ Resources:
       VpcId: !Ref VPC
       SecurityGroupIngress:
       - IpProtocol: tcp
-          FromPort: '80'
-          ToPort: '80'
-          CidrIp: 0.0.0.0/0
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
       - IpProtocol: tcp
-          FromPort: '443'
-          ToPort: '443'
-          CidrIp: 0.0.0.0/0
+        FromPort: '443'
+        ToPort: '443'
+        CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
       - IpProtocol: tcp
-          FromPort: '0'
-          ToPort: '65535'
-          CidrIp: 0.0.0.0/0
+        FromPort: '0'
+        ToPort: '65535'
+        CidrIp: 0.0.0.0/0
       Tags:
       - Key: Name
         Value: !Sub ${ChefSubdomain}-ELB-SecurityGroup
@@ -607,14 +508,14 @@ Resources:
           CookieExpirationPeriod: '3600'
       Listeners:
         - InstancePort: !If [ BackendSSLCon, 443, 80 ]
-        LoadBalancerPort: '443'
-        InstanceProtocol: HTTPS
-        Protocol: HTTPS
-        PolicyNames:
-          - PublicELBCookieStickinessPolicy
-        SSLCertificateId: !Ref SSLCertificateARN
+          LoadBalancerPort: '443'
+          InstanceProtocol: HTTPS
+          Protocol: HTTPS
+          PolicyNames:
+            - PublicELBCookieStickinessPolicy
+          SSLCertificateId: !Ref SSLCertificateARN
       HealthCheck:
-        Target: !If [ BackendSSLCon, HTTPS:443/humans.txt, HTTP:80/humans.txt ]
+        Target: !If [ BackendSSLCon, "HTTPS:443/humans.txt", "HTTP:80/humans.txt" ]
         HealthyThreshold: '2'
         UnhealthyThreshold: '10'
         Interval: '90'
@@ -625,14 +526,14 @@ Resources:
   ChefDNS:
     Type: AWS::Route53::RecordSetGroup
     Properties:
-      HostedZoneName: !Join [ '', [ !Ref HostedZone, "." ]
+      HostedZoneName: !Sub "${HostedZone}."
       Comment: !Sub Zone apex alias targeted to ${ChefSubdomain} ELB.
       RecordSets:
-        - Name: !Join [ '', [ !Ref ChefSubdomain, "." ,!Ref HostedZone, "." ] ]
-        Type: A
-        AliasTarget:
-          HostedZoneId: !GetAtt PrimaryElasticLoadBalancer.CanonicalHostedZoneNameID
-          DNSName: !GetAtt PrimaryElasticLoadBalancer.CanonicalHostedZoneName
+        - Name: !Join [ '', [ !Ref ChefSubdomain, ".", !Ref HostedZone, "." ] ]
+          Type: A
+          AliasTarget:
+            HostedZoneId: !GetAtt PrimaryElasticLoadBalancer.CanonicalHostedZoneNameID
+            DNSName: !GetAtt PrimaryElasticLoadBalancer.CanonicalHostedZoneName
 
   FrontendSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -693,7 +594,7 @@ Resources:
   ServerLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
-      ImageId: !FindInMap [ AWSRegionArch2AMI, !Ref AWS::Region ] !FindInMap [ AWSInstanceType2Arch, !Ref InstanceType, Arch ]
+      ImageId: !FindInMap [ RegionMap, !Ref "AWS::Region", HVM64 ]
       AssociatePublicIpAddress: 'true'
       InstanceType: !Ref InstanceType
       SecurityGroups:
