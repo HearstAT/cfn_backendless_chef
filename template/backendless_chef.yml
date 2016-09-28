@@ -189,11 +189,6 @@ Parameters:
     Type: AWS::EC2::SecurityGroup::Id
     Default: ''
 
-  UserDataScript:
-    Type: String
-    Default: https://raw.githubusercontent.com/HearstAT/cfn_backendless_chef/master/userdata.sh
-    Description: URL for userdata script to run
-
   BackupEnable:
     Type: String
     Default: 'true'
