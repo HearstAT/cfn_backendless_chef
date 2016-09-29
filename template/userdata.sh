@@ -1,11 +1,14 @@
 #!/bin/bash -xev
 
 BUCKET="Fn::If": [ CreateChefBucket, ${ChefBucket}, ${BucketName} ]
+ELASTICURL="Fn:GetAtt": [ ElasticsearchDomain, DomainEndpoint ]
+DBENDPOINT="Fn::If": [ DBCon, ${DBURL}, "Fn::GetAtt": [ ChefDB, Endpoint.Address ] ]
+DBPORT="Fn::If": [ DBCon, ${DBPort} , "Fn::GetAtt": [ ChefDB, Endpoint.Address ] ]
 
 exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 
 apt-get update && apt-get -y upgrade
-apt-get install -y wget curl python-setuptools python-pip git automake autotools-dev g++ git libcurl4-gnutls-dev libfuse-dev libssl-dev libxml2-dev make pkg-config
+apt-get install -y wget curl python-setuptools python-pip git
 
 # Helper function to set wait timer
 error_exit()
@@ -13,6 +16,9 @@ error_exit()
   /usr/local/bin/cfn-signal -e 1 -r $1 ${WaitHandle}
   exit 1
  }
+
+# Install S3FS Dependencies
+sudo apt-get install -y automake autotools-dev g++ git libcurl4-gnutls-dev libfuse-dev libssl-dev libxml2-dev make pkg-config
 
 # Install S3FS
 
@@ -61,7 +67,6 @@ fi
 mkdir -p ${S3Dir}/mail ${S3Dir}/newrelic ${S3Dir}/sumologic ${S3Dir}/db ${S3Dir}/aws ${S3Dir}/certs
 
 set +xv
-
 ## DB Creds
 echo "${DBUser}" | tr -d '\n' > ${S3Dir}/db/username
 echo "${DBPassword}" | tr -d '\n' > ${S3Dir}/db/password
@@ -76,7 +81,6 @@ echo "${NewRelicLicense}" | tr -d '\n' > ${S3Dir}/newrelic/license
 echo "${SumologicPassword}" | tr -d '\n' > ${S3Dir}/sumologic/password
 echo "${SumologicAccessID}" | tr -d '\n' > ${S3Dir}/sumologic/access_id
 echo "${SumologicAccessKey}" | tr -d '\n' > ${S3Dir}/sumologic/access_key
-
 set -xv
 
 # install chef
@@ -114,7 +118,8 @@ cat > '/etc/hosts' << EOF
 ::1 localhost6.localdomain6 localhost6
 EOF
 
-cat > "${ChefDir}/chef_stack.json" << EOF
+
+cat > ${ChefDir}/chef_stack.json << EOF
 {
     "citadel": {
         "bucket": "$BUCKET"
@@ -123,6 +128,11 @@ cat > "${ChefDir}/chef_stack.json" << EOF
         "master": "$MASTER",
         "backup": {
             "enable_backups": ${BackupEnable}
+        },
+        "version": {
+            "server": ${ChefVersion},
+            "reporting": ${ReportingVersion},
+            "manage": ${ManageVersion}
         },
         "licensecount": "${LicenseCount}",
         "manage": {
@@ -137,11 +147,11 @@ cat > "${ChefDir}/chef_stack.json" << EOF
             "relayport": "${MailPort}"
         },
         "search": {
-            "url": "${ElasticSearchURL}"
+            "url": "$ELASTICURL"
         },
         "database": {
-            "port": "${DBPort}",
-            "url": "${DBURL}"
+            "port": "$DBPORT",
+            "url": "$DBENDPOINT"
         },
         "aws": {
             "AWS::Region": "${AWS::Region}"
@@ -207,7 +217,7 @@ local_mode true
 chef_zero.port 8899
 EOF
 
-cat > ${ChefDir}/Berksfile <<EOF
+cat > "${ChefDir}/Berksfile" <<EOF
 source 'https://supermarket.chef.io'
 cookbook "${Cookbook}", git: '${CookbookGit}', branch: '${CookbookGitBranch}'
 EOF

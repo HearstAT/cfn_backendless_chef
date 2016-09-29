@@ -24,42 +24,6 @@ Parameters:
       - chef-test
     Description: subdomain/prefix for chose hosted zone used for staging
 
-  ChefServerVersion:
-    Type: String
-    Default: "12.9.1"
-    AllowedValues:
-      - "12.9.1"
-      - "12.9.0"
-      - "12.8.0"
-      - "12.7.0"
-      - "12.6.0"
-      - "12.5.0"
-      - "12.4.1"
-    Description: Choose Version of Chef Server to Install (All Supported Versions listed)
-
-    ManageVersion:
-      Type: String
-      Default: "2.4.3"
-      AllowedValues:
-        - "2.4.3"
-        - "2.4.2"
-        - "2.4.1"
-        - "2.4.0"
-        - "2.3.0"
-        - "2.2.1"
-        - "2.2.0"
-        - "2.1.2"
-        - "2.1.1"
-        - "2.1.0"
-      Description: Choose Version of Chef Manage to Install (All Supported Versions listed)
-
-  ReportingVersion:
-    Type: String
-    Default: "Null"
-    AllowedValues:
-      - "Null"
-    Description: Choose Version of Chef Reporting to Install (All Supported Versions listed)
-
   SSLCertificateARN:
     Type: String
     Default: 'arn:aws:iam::'
@@ -101,23 +65,28 @@ Parameters:
   DBUser:
     Type: String
     Default: ''
-    Description: Enter DB User Name (Used for both existing and new DB)
+    Description: Enter DB User Name
 
   DBPassword:
     Type: String
     NoEcho: 'true'
     Default: ''
-    Description: Enter DB Password (Used for both existing and new DB)
+    Description: Enter DB Password
 
   DBPort:
     Type: String
     Default: '5432'
-    Description: Enter DB Port (Only Required if Using Existing DB)
+    Description: Enter DB Port
 
   DBURL:
     Type: String
     Default: ''
-    Description: Enter DB URL or VIP (Only Required if Using Existing DB)
+    Description: Enter DB URL or VIP
+
+  ElasticSearchURL:
+    Type: String
+    Default: ''
+    Description: Enter ElasticSearch URL
 
   UseExistingBucket:
     Type: String
@@ -264,6 +233,27 @@ Parameters:
       - c4.large
       - c4.xlarge
       - c4.2xlarge
+      - c4.4xlarge
+      - c4.8xlarge
+      - g2.2xlarge
+      - r3.large
+      - r3.xlarge
+      - r3.2xlarge
+      - r3.4xlarge
+      - r3.8xlarge
+      - i2.xlarge
+      - i2.2xlarge
+      - i2.4xlarge
+      - i2.8xlarge
+      - d2.xlarge
+      - d2.2xlarge
+      - d2.4xlarge
+      - d2.8xlarge
+      - hi1.4xlarge
+      - hs1.8xlarge
+      - cr1.8xlarge
+      - cc2.8xlarge
+      - cg1.4xlarge
     ConstraintDescription: must be a valid EC2 instance type.
 
 Metadata:
@@ -297,18 +287,19 @@ Metadata:
         - ChefDir
         - S3Dir
         - BackupEnable
-        - ChefServerVersion
-        - ManageVersion
-        - ReportingVersion
     -
       Label:
         default: Database Configuration
       Parameters:
-        - ExistingDB
         - DBUser
         - DBPassword
         - DBPort
         - DBURL
+    -
+      Label:
+        default: ElasticSearch Configuration
+      Parameters:
+        - ElasticSearchURL
     -
       Label:
         default: Mail Configuration (Optional)
@@ -338,6 +329,7 @@ Metadata:
         - Cookbook
         - CookbookGit
         - CookbookGitBranch
+        - UserDataScript
     -
       Label:
         default: Instance & Network Configuration
@@ -352,38 +344,40 @@ Metadata:
         - AvailabilityZoneC
 Mappings:
   RegionMap:
+    us-east-1:
+      HVM64: ami-0021766a
     us-west-2:
       HVM64: ami-dbfc02bb
+    us-west-1:
+      HVM64: ami-56f59e36
     eu-west-1:
-      HVM64: ami-167ba776
+      HVM64: ami-a11dbfd2
+    eu-central-1:
+      HVM64: ami-ffaab693
+    ap-northeast-1:
+      HVM64: ami-20b98c4e
+    ap-southeast-1:
+      HVM64: ami-06834165
+    ap-southeast-2:
+      HVM64: ami-7bbee518
+    sa-east-1:
+      HVM64: ami-08bd3a64
+    cn-north-1:
+      HVM64: ami-3378b15e
 
   SubnetConfig:
-    chef-a-1:
+    PublicA:
       CIDR: 172.33.10.0/24
-    chef-a-2:
+    PublicB:
       CIDR: 172.33.20.0/24
-    chef-a-3:
+    PublicC:
       CIDR: 172.33.30.0/24
-    chef-b-1:
-      CIDR: 172.33.11.0/24
-    chef-b-2:
-      CIDR: 172.33.22.0/24
-    chef-b-3:
-      CIDR: 172.33.33.0/24
-    chef-test-1:
-      CIDR: 172.33.12.0/24
-    chef-test-2:
-      CIDR: 172.33.13.0/24
-    chef-test-3:
-      CIDR: 172.33.14.0/24
 
 Conditions:
   CreateChefBucket:
     !Equals [ !Ref UseExistingBucket, false ]
   BackendSSLCon:
     !Equals [ !Ref BackendSSL, true ]
-  DBCon:
-    !Equals [ !Ref ExistingDB, true ]
 
 Resources:
   SubnetA:
@@ -391,44 +385,40 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Ref AvailabilityZoneA
-      CidrBlock: !Sub "Fn::FindInMap": [ SubnetConfig, ${ChefSubdomain}-1, CIDR ]
+      CidrBlock: !FindInMap [ SubnetConfig, PublicA, CIDR ]
       Tags:
-        - Name: !Sub ${ChefSubdomain}-Public-Subnet-A
-        - Application: !Ref AWS::StackId
-        - Network: "Public"
+        - Key: Name
+          Value: !Sub ${ChefSubdomain}-Public-Subnet-A
+        - Key: Application
+          Value: !Ref AWS::StackId
+        - Key: Network
+          Value: Public
   SubnetB:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Ref AvailabilityZoneB
-      CidrBlock: !Sub "Fn::FindInMap": [ SubnetConfig, ${ChefSubdomain}-2, CIDR ]
+      CidrBlock: !FindInMap [ SubnetConfig, PublicB, CIDR ]
       Tags:
-        - Name: !Sub ${ChefSubdomain}-Public-Subnet-B
-        - Application: !Ref AWS::StackId
-        - Network: "Public"
+        - Key: Name
+          Value: !Sub ${ChefSubdomain}-Public-Subnet-B
+        - Key: Application
+          Value: !Ref AWS::StackId
+        - Key: Network
+          Value: Public
   SubnetC:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Ref AvailabilityZoneC
-      CidrBlock: !Sub "Fn::FindInMap": [ SubnetConfig, ${ChefSubdomain}-2, CIDR ]
+      CidrBlock: !FindInMap [ SubnetConfig, PublicC, CIDR ]
       Tags:
-      - Name: !Sub ${ChefSubdomain}-Public-Subnet-C
-      - Application: !Ref AWS::StackId
-      - Network: "Public"
-
-  DBSubnetGroup:
-  Type: AWS::RDS::DBSubnetGroup
-  Properties:
-    DBSubnetGroupDescription: "Chef DB Subnet Group"
-    SubnetIds:
-        - !Ref SubnetA
-        - !Ref SubnetB
-        - !Ref SubnetC
-    Tags:
-      -
-        Name: !Sub "${ChefSubdomain} DB Subnet Group"
-
+      - Key: Name
+        Value: !Sub ${ChefSubdomain}-Public-Subnet-C
+      - Key: Application
+        Value: !Ref AWS::StackId
+      - Key: Network
+        Value: Public
   ChefBucket:
     Type: AWS::S3::Bucket
     Condition: CreateChefBucket
@@ -497,7 +487,8 @@ Resources:
         ToPort: '65535'
         CidrIp: 0.0.0.0/0
       Tags:
-      - Name: !Sub ${ChefSubdomain}-ELB-SecurityGroup
+      - Key: Name
+        Value: !Sub ${ChefSubdomain}-ELB-SecurityGroup
   PrimaryElasticLoadBalancer:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
@@ -525,7 +516,8 @@ Resources:
         Interval: '90'
         Timeout: '60'
       Tags:
-        - Name: !Sub ${ChefSubdomain}-ELB
+        - Key: Name
+          Value: !Sub ${ChefSubdomain}-ELB
   ChefDNS:
     Type: AWS::Route53::RecordSetGroup
     Properties:
@@ -570,61 +562,8 @@ Resources:
           ToPort: '65535'
           CidrIp: 0.0.0.0/0
       Tags:
-        - Name: !Sub ${ChefSubdomain}-Frontend-Security-Group
-
-    ChefDBSecurityGroup:
-      Type: AWS::RDS::DBSecurityGroup
-      Properties:
-        EC2VpcId: !Ref VPC
-        DBSecurityGroupIngress:
-          -
-            EC2SecurityGroupName: !Ref "Frontend-Security-Group"
-        GroupDescription: "Frontend Access"
-
-  ElasticsearchDomain:
-    Type: AWS::Elasticsearch::Domain
-    Properties:
-      ElasticsearchClusterConfig:
-        DedicatedMasterEnabled: "true"
-        InstanceCount: "2"
-        ZoneAwarenessEnabled: "true"
-        InstanceType: "t2.medium.elasticsearch"
-      EBSOptions:
-        EBSEnabled: true
-        Iops: 0
-        VolumeSize: 20
-        VolumeType: "gp2"
-      SnapshotOptions:
-        AutomatedSnapshotStartHour: "0"
-      AccessPolicies:
-        Version: "2012-10-17"
-        Statement:
-          -
-            Effect: "Allow"
-            Principal:
-              AWS: "*"
-            Action: "es:*"
-            Resource: "*"
-      AdvancedOptions:
-        rest.action.multi.allow_explicit_index: "true"
-
-  ChefDB:
-    Type: AWS::RDS::DBInstance
-    Properties:
-      DBName: !Sub ${ChefSubdomain}-db
-      AllocatedStorage: "50"
-      DBInstanceClass:  "db.t2.large"
-      Engine: "PostgreSQL"
-      EngineVersion: "9.5.2"
-      MasterUsername: !Ref: "DBUser"
-      MasterUserPassword: !Ref: "DBPassword"
-      BackupRetentionPeriod: "30"
-      DBSecurityGroups: !Ref ChefDBSecurityGroup
-      DBSubnetGroupName: !Ref DBSubnetGroup
-      MonitoringInterval: "5"
-      Tags:
-        - Name: !Sub "${ChefSubdomain} Database"
-    DeletionPolicy: "Snapshot"
+        - Key: Name
+          Value: !Sub ${ChefSubdomain}-Frontend-Security-Group
 
   AutoScaleGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -643,7 +582,8 @@ Resources:
       LoadBalancerNames:
       - !Ref PrimaryElasticLoadBalancer
       Tags:
-      - Name: !Sub ${ChefSubdomain}-Scale-Group
+      - Key: Name
+        Value: !Sub ${ChefSubdomain}-Scale-Group
         PropagateAtLaunch: 'true'
 
   ServerLaunchConfig:
@@ -666,9 +606,6 @@ Resources:
             #!/bin/bash -xev
 
             BUCKET="Fn::If": [ CreateChefBucket, ${ChefBucket}, ${BucketName} ]
-            ELASTICURL="Fn:GetAtt": [ ElasticsearchDomain, DomainEndpoint ]
-            DBENDPOINT="Fn::If": [ DBCon, ${DBURL}, "Fn::GetAtt": [ ChefDB, Endpoint.Address ] ]
-            DBPORT="Fn::If": [ DBCon, ${DBPort} , "Fn::GetAtt": [ ChefDB, Endpoint.Port ] ]
 
             exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 
@@ -678,7 +615,7 @@ Resources:
             # Helper function to set wait timer
             error_exit()
             {
-              /usr/local/bin/cfn-signal -e 1 -r $1 ${WaitHandle}
+              /usr/local/bin/cfn-signal -e 1 -r $1  ${WaitHandle}
               exit 1
              }
 
@@ -731,7 +668,6 @@ Resources:
             # make directories
             mkdir -p ${S3Dir}/mail ${S3Dir}/newrelic ${S3Dir}/sumologic ${S3Dir}/db ${S3Dir}/aws ${S3Dir}/certs
 
-            set +xv
             ## DB Creds
             echo "${DBUser}" | tr -d '\n' > ${S3Dir}/db/username
             echo "${DBPassword}" | tr -d '\n' > ${S3Dir}/db/password
@@ -746,7 +682,6 @@ Resources:
             echo "${SumologicPassword}" | tr -d '\n' > ${S3Dir}/sumologic/password
             echo "${SumologicAccessID}" | tr -d '\n' > ${S3Dir}/sumologic/access_id
             echo "${SumologicAccessKey}" | tr -d '\n' > ${S3Dir}/sumologic/access_key
-            set -xv
 
             # install chef
             if [ ! -f "/usr/bin/chef-client" ]; then
@@ -766,13 +701,8 @@ Resources:
             touch /etc/chef/ohai/hints/iam.json || error_exit 'Failed to create iam hint file'
 
             # Create Chef Directory
-            if [ ! -d "${ChefDir}" ]; then
-              mkdir -p ${ChefDir}
-            fi
-
-            if [ ! -d '/etc/chef']; then
-              mkdir -p /etc/chef
-            fi
+            mkdir -p ${ChefDir}
+            mkdir -p /etc/chef
 
             # Set hostname
             hostname $FQDN  || error_exit 'Failed to set hostname'
@@ -784,7 +714,7 @@ Resources:
             EOF
 
 
-            cat > ${ChefDir}/chef_stack.json << EOF
+            cat > "${ChefDir}/chef_stack.json" << EOF
             {
                 "citadel": {
                     "bucket": "$BUCKET"
@@ -793,11 +723,6 @@ Resources:
                     "master": "$MASTER",
                     "backup": {
                         "enable_backups": ${BackupEnable}
-                    },
-                    "version": {
-                        "server": ${ChefVersion},
-                        "reporting": ${ReportingVersion},
-                        "manage": ${ManageVersion}
                     },
                     "licensecount": "${LicenseCount}",
                     "manage": {
@@ -812,11 +737,11 @@ Resources:
                         "relayport": "${MailPort}"
                     },
                     "search": {
-                        "url": "$ELASTICURL"
+                        "url": "${ElasticSearchURL}"
                     },
                     "database": {
-                        "port": "$DBPORT",
-                        "url": "$DBENDPOINT"
+                        "port": "${DBPort}",
+                        "url": "${DBURL}"
                     },
                     "aws": {
                         "AWS::Region": "${AWS::Region}"
@@ -891,7 +816,7 @@ Resources:
             sudo su -l -c "chef-client -c "${ChefDir}/client.rb"" || error_exit 'Failed to run chef-client'
 
             # All is well so signal success and let CF know wait function is complete
-            /usr/local/bin/cfn-signal -e 0 -r 'Server setup complete' ${WaitHandle}
+            /usr/local/bin/cfn-signal -e 0 -r 'Server setup complete'  ${WaitHandle}
 
   WaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
