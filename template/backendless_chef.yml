@@ -370,6 +370,9 @@ Metadata:
         - KeyName
         - VPC
         - SSHSecurityGroup
+        - CIDRA
+        - CIDRB
+        - CIDRC
         - AvailabilityZoneA
         - AvailabilityZoneB
         - AvailabilityZoneC
@@ -386,7 +389,7 @@ Conditions:
   BackendSSLCon:
     !Equals [ !Ref BackendSSL, true ]
   DBCon:
-    !Equals [ !Ref ExistingDB, true ]
+    !Equals [ !Ref ExistingDB, false ]
 
 Resources:
   SubnetA:
@@ -399,6 +402,7 @@ Resources:
         - Name: !Sub ${ChefSubdomain}-Public-Subnet-A
         - Application: !Ref AWS::StackId
         - Network: "Public"
+
   SubnetB:
     Type: AWS::EC2::Subnet
     Properties:
@@ -409,6 +413,7 @@ Resources:
         - Name: !Sub ${ChefSubdomain}-Public-Subnet-B
         - Application: !Ref AWS::StackId
         - Network: "Public"
+
   SubnetC:
     Type: AWS::EC2::Subnet
     Properties:
@@ -422,6 +427,7 @@ Resources:
 
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
+    Condition: DBCon
     Properties:
       DBSubnetGroupDescription: "Chef DB Subnet Group"
       SubnetIds:
@@ -480,6 +486,7 @@ Resources:
       Path: "/"
       Roles:
       - !Ref ChefRole
+
   LoadBalancerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -501,6 +508,7 @@ Resources:
         CidrIp: 0.0.0.0/0
       Tags:
       - Name: !Sub ${ChefSubdomain}-ELB-SecurityGroup
+
   PrimaryElasticLoadBalancer:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
@@ -529,6 +537,7 @@ Resources:
         Timeout: '60'
       Tags:
         - Name: !Sub ${ChefSubdomain}-ELB
+
   ChefDNS:
     Type: AWS::Route53::RecordSetGroup
     Properties:
@@ -577,29 +586,30 @@ Resources:
 
   ChefDBSecurityGroup:
     Type: AWS::RDS::DBSecurityGroup
+    Condition: DBCon
     Properties:
       EC2VpcId: !Ref VPC
       DBSecurityGroupIngress:
         -
           EC2SecurityGroupName: !Ref FrontendSecurityGroup
-      GroupDescription: "Frontend Access"
+      GroupDescription: Frontend Access
 
   ElasticsearchDomain:
     Type: AWS::Elasticsearch::Domain
     Properties:
-      ElasticsearchVersion: "2.3"
+      ElasticsearchVersion: 2.3
       ElasticsearchClusterConfig:
-        DedicatedMasterEnabled: "true"
-        InstanceCount: "2"
-        ZoneAwarenessEnabled: "true"
-        InstanceType: "t2.medium.elasticsearch"
+        DedicatedMasterEnabled: true
+        InstanceCount: 2
+        ZoneAwarenessEnabled: true
+        InstanceType: t2.medium.elasticsearch
       EBSOptions:
         EBSEnabled: true
         Iops: 0
         VolumeSize: 20
-        VolumeType: "gp2"
+        VolumeType: gp2
       SnapshotOptions:
-        AutomatedSnapshotStartHour: "0"
+        AutomatedSnapshotStartHour: 0
       AccessPolicies:
         Version: "2012-10-17"
         Statement:
@@ -614,18 +624,19 @@ Resources:
 
   ChefDB:
     Type: AWS::RDS::DBInstance
+    Condition: DBCon
     Properties:
       DBName: !Sub ${ChefSubdomain}-db
-      AllocatedStorage: "50"
-      DBInstanceClass:  "db.t2.large"
-      Engine: "PostgreSQL"
-      EngineVersion: "9.5.2"
+      AllocatedStorage: 50
+      DBInstanceClass:  db.t2.large
+      Engine: PostgreSQL
+      EngineVersion: 9.5.2
       MasterUsername: !Ref DBUser
       MasterUserPassword: !Ref DBPassword
       BackupRetentionPeriod: "30"
       DBSecurityGroups: !Ref ChefDBSecurityGroup
       DBSubnetGroupName: !Ref DBSubnetGroup
-      MonitoringInterval: "5"
+      MonitoringInterval: 5
       Tags:
         - Name: !Sub "${ChefSubdomain} Database"
     DeletionPolicy: "Snapshot"
@@ -713,9 +724,9 @@ Resources:
             fi
 
             # Mount S3 Bucket to Directory
-            s3fs -o allow_other -o umask=000 -o ChefRole=${ChefRole} -o endpoint=${AWS::Region} "$BUCKET" ${S3Dir} || error_exit 'Failed to mount s3fs'
+            s3fs -o allow_other -o umask=000 -o iam_role=${ChefRole} -o endpoint=${AWS::Region} $BUCKET ${S3Dir} || error_exit 'Failed to mount s3fs'
 
-            echo -e "$BUCKET ${S3Dir} fuse.s3fs rw,_netdev,allow_other,umask=000,ChefRole=${ChefRole},endpoint=${AWS::Region},retries=5,multireq_max=5 0 0" >> /etc/fstab || error_exit 'Failed to add mount info to fstab'
+            echo -e "$BUCKET ${S3Dir} fuse.s3fs rw,_netdev,allow_other,umask=000,iam_role=${ChefRole},endpoint=${AWS::Region},retries=5,multireq_max=5 0 0" >> /etc/fstab || error_exit 'Failed to add mount info to fstab'
 
             # Sleep to allow s3fs to connect
             sleep 20
@@ -733,7 +744,7 @@ Resources:
             fi
 
             # make directories
-            mkdir -p ${S3Dir}/mail ${S3Dir}/newrelic ${S3Dir}/sumologic ${S3Dir}/db ${S3Dir}/aws ${S3Dir}/certs
+            mkdir -p ${S3Dir}/mail ${S3Dir}/newrelic ${S3Dir}/sumologic ${S3Dir}/db ${S3Dir}/certs
 
             set +xv
             ## DB Creds
