@@ -37,21 +37,21 @@ Parameters:
       - "12.4.1"
     Description: Choose Version of Chef Server to Install (All Supported Versions listed)
 
-    ManageVersion:
-      Type: String
-      Default: "2.4.3"
-      AllowedValues:
-        - "2.4.3"
-        - "2.4.2"
-        - "2.4.1"
-        - "2.4.0"
-        - "2.3.0"
-        - "2.2.1"
-        - "2.2.0"
-        - "2.1.2"
-        - "2.1.1"
-        - "2.1.0"
-      Description: Choose Version of Chef Manage to Install (All Supported Versions listed)
+  ManageVersion:
+    Type: String
+    Default: "2.4.3"
+    AllowedValues:
+      - "2.4.3"
+      - "2.4.2"
+      - "2.4.1"
+      - "2.4.0"
+      - "2.3.0"
+      - "2.2.1"
+      - "2.2.0"
+      - "2.1.2"
+      - "2.1.1"
+      - "2.1.0"
+    Description: Choose Version of Chef Manage to Install (All Supported Versions listed)
 
   ReportingVersion:
     Type: String
@@ -98,6 +98,14 @@ Parameters:
     Default: '25'
     Description: Enter how many licenses you have purchased
 
+  ExistingDB:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Set true only if you have an existing PostgreSQL Instance
+
   DBUser:
     Type: String
     Default: ''
@@ -121,7 +129,7 @@ Parameters:
 
   UseExistingBucket:
     Type: String
-    Default: 'true'
+    Default: 'false'
     AllowedValues:
       - 'true'
       - 'false'
@@ -227,6 +235,21 @@ Parameters:
       - 'true'
       - 'false'
     Description: Select True/False if you wanted to enable backups
+
+  CIDRA:
+    Type: String
+    Default: 172.33.10.0/24
+    Description: Subnet A CIDR Block
+
+  CIDRB:
+    Type: String
+    Default: 172.33.20.0/24
+    Description: Subnet A CIDR Block
+
+  CIDRC:
+    Type: String
+    Default: 172.33.30.0/24
+    Description: Subnet A CIDR Block
 
   VPC:
     Description: Choose VPC to use
@@ -353,29 +376,9 @@ Metadata:
 Mappings:
   RegionMap:
     us-west-2:
-      HVM64: ami-dbfc02bb
-    eu-west-1:
       HVM64: ami-167ba776
-
-  SubnetConfig:
-    chef-a-1:
-      CIDR: 172.33.10.0/24
-    chef-a-2:
-      CIDR: 172.33.20.0/24
-    chef-a-3:
-      CIDR: 172.33.30.0/24
-    chef-b-1:
-      CIDR: 172.33.11.0/24
-    chef-b-2:
-      CIDR: 172.33.22.0/24
-    chef-b-3:
-      CIDR: 172.33.33.0/24
-    chef-test-1:
-      CIDR: 172.33.12.0/24
-    chef-test-2:
-      CIDR: 172.33.13.0/24
-    chef-test-3:
-      CIDR: 172.33.14.0/24
+    eu-west-1:
+      HVM64: ami-844e0bf7
 
 Conditions:
   CreateChefBucket:
@@ -391,7 +394,7 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Ref AvailabilityZoneA
-      CidrBlock: !Sub "Fn::FindInMap": [ SubnetConfig, ${ChefSubdomain}-1, CIDR ]
+      CidrBlock: !Ref CIDRA
       Tags:
         - Name: !Sub ${ChefSubdomain}-Public-Subnet-A
         - Application: !Ref AWS::StackId
@@ -401,7 +404,7 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Ref AvailabilityZoneB
-      CidrBlock: !Sub "Fn::FindInMap": [ SubnetConfig, ${ChefSubdomain}-2, CIDR ]
+      CidrBlock: !Ref CIDRB
       Tags:
         - Name: !Sub ${ChefSubdomain}-Public-Subnet-B
         - Application: !Ref AWS::StackId
@@ -411,23 +414,23 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       AvailabilityZone: !Ref AvailabilityZoneC
-      CidrBlock: !Sub "Fn::FindInMap": [ SubnetConfig, ${ChefSubdomain}-2, CIDR ]
+      CidrBlock: !Ref CIDRC
       Tags:
       - Name: !Sub ${ChefSubdomain}-Public-Subnet-C
       - Application: !Ref AWS::StackId
       - Network: "Public"
 
   DBSubnetGroup:
-  Type: AWS::RDS::DBSubnetGroup
-  Properties:
-    DBSubnetGroupDescription: "Chef DB Subnet Group"
-    SubnetIds:
-        - !Ref SubnetA
-        - !Ref SubnetB
-        - !Ref SubnetC
-    Tags:
-      -
-        Name: !Sub "${ChefSubdomain} DB Subnet Group"
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Chef DB Subnet Group"
+      SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+      Tags:
+        -
+          Name: !Sub "${ChefSubdomain} DB Subnet Group"
 
   ChefBucket:
     Type: AWS::S3::Bucket
@@ -572,14 +575,14 @@ Resources:
       Tags:
         - Name: !Sub ${ChefSubdomain}-Frontend-Security-Group
 
-    ChefDBSecurityGroup:
-      Type: AWS::RDS::DBSecurityGroup
-      Properties:
-        EC2VpcId: !Ref VPC
-        DBSecurityGroupIngress:
-          -
-            EC2SecurityGroupName: !Ref "Frontend-Security-Group"
-        GroupDescription: "Frontend Access"
+  ChefDBSecurityGroup:
+    Type: AWS::RDS::DBSecurityGroup
+    Properties:
+      EC2VpcId: !Ref VPC
+      DBSecurityGroupIngress:
+        -
+          EC2SecurityGroupName: !Ref FrontendSecurityGroup
+      GroupDescription: "Frontend Access"
 
   ElasticsearchDomain:
     Type: AWS::Elasticsearch::Domain
@@ -616,8 +619,8 @@ Resources:
       DBInstanceClass:  "db.t2.large"
       Engine: "PostgreSQL"
       EngineVersion: "9.5.2"
-      MasterUsername: !Ref: "DBUser"
-      MasterUserPassword: !Ref: "DBPassword"
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPassword
       BackupRetentionPeriod: "30"
       DBSecurityGroups: !Ref ChefDBSecurityGroup
       DBSubnetGroupName: !Ref DBSubnetGroup
@@ -795,7 +798,7 @@ Resources:
                         "enable_backups": ${BackupEnable}
                     },
                     "version": {
-                        "server": ${ChefVersion},
+                        "server": ${ChefServerVersion},
                         "reporting": ${ReportingVersion},
                         "manage": ${ManageVersion}
                     },
