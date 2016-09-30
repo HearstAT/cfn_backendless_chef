@@ -587,6 +587,7 @@ Resources:
   ElasticsearchDomain:
     Type: AWS::Elasticsearch::Domain
     Properties:
+      ElasticsearchVersion: "2.3"
       ElasticsearchClusterConfig:
         DedicatedMasterEnabled: "true"
         InstanceCount: "2"
