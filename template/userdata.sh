@@ -3,7 +3,7 @@
 BUCKET="Fn::If": [ CreateChefBucket, ${ChefBucket}, ${BucketName} ]
 ELASTICURL="Fn:GetAtt": [ ElasticsearchDomain, DomainEndpoint ]
 DBENDPOINT="Fn::If": [ DBCon, ${DBURL}, "Fn::GetAtt": [ ChefDB, Endpoint.Address ] ]
-DBPORT="Fn::If": [ DBCon, ${DBPort} , "Fn::GetAtt": [ ChefDB, Endpoint.Address ] ]
+DBPORT="Fn::If": [ DBCon, ${DBPort} , "Fn::GetAtt": [ ChefDB, Endpoint.Port ] ]
 
 exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 
@@ -44,9 +44,9 @@ if [ ! -d "${S3Dir}" ]; then
 fi
 
 # Mount S3 Bucket to Directory
-s3fs -o allow_other -o umask=000 -o ChefRole=${ChefRole} -o endpoint=${AWS::Region} "$BUCKET" ${S3Dir} || error_exit 'Failed to mount s3fs'
+s3fs -o allow_other -o umask=000 -o iam_role=${ChefRole} -o endpoint=${AWS::Region} $BUCKET ${S3Dir} || error_exit 'Failed to mount s3fs'
 
-echo -e "$BUCKET ${S3Dir} fuse.s3fs rw,_netdev,allow_other,umask=000,ChefRole=${ChefRole},endpoint=${AWS::Region},retries=5,multireq_max=5 0 0" >> /etc/fstab || error_exit 'Failed to add mount info to fstab'
+echo -e "$BUCKET ${S3Dir} fuse.s3fs rw,_netdev,allow_other,umask=000,iam_role=${ChefRole},endpoint=${AWS::Region},retries=5,multireq_max=5 0 0" >> /etc/fstab || error_exit 'Failed to add mount info to fstab'
 
 # Sleep to allow s3fs to connect
 sleep 20
@@ -64,7 +64,7 @@ else
 fi
 
 # make directories
-mkdir -p ${S3Dir}/mail ${S3Dir}/newrelic ${S3Dir}/sumologic ${S3Dir}/db ${S3Dir}/aws ${S3Dir}/certs
+mkdir -p ${S3Dir}/mail ${S3Dir}/newrelic ${S3Dir}/sumologic ${S3Dir}/db ${S3Dir}/certs
 
 set +xv
 ## DB Creds
@@ -130,7 +130,7 @@ cat > ${ChefDir}/chef_stack.json << EOF
             "enable_backups": ${BackupEnable}
         },
         "version": {
-            "server": ${ChefVersion},
+            "server": ${ChefServerVersion},
             "reporting": ${ReportingVersion},
             "manage": ${ManageVersion}
         },
