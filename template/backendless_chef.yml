@@ -2,11 +2,14 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: "Cloudformation Backendless Chef v1.1"
 Parameters:
+
+  # CookBook Utilized: Helps set domain on servers as well
   HostedZone:
     Type: String
     Default: domain.com
     Description: must match a route53 hosted domain/zone
 
+  # CookBook Utilized: Let's backend cookbook know the same (passed into attributes). Also utilized in conditionals
   BackendSSL:
     Type: String
     Default: 'true'
@@ -15,6 +18,7 @@ Parameters:
       - 'false'
     Description: Choose to use backend ssl in addition to ELB ssl
 
+  # CookBook Utilized:
   ChefSubdomain:
     Type: String
     Default: chef-a
@@ -24,6 +28,7 @@ Parameters:
       - chef-test
     Description: subdomain/prefix for chose hosted zone used for staging
 
+  # CookBook Utilized:
   ChefServerVersion:
     Type: String
     Default: "12.9.1"
@@ -37,6 +42,7 @@ Parameters:
       - "12.4.1"
     Description: Choose Version of Chef Server to Install (All Supported Versions listed)
 
+  # CookBook Utilized:
   ManageVersion:
     Type: String
     Default: "2.4.3"
@@ -53,6 +59,7 @@ Parameters:
       - "2.1.0"
     Description: Choose Version of Chef Manage to Install (All Supported Versions listed)
 
+  # CookBook Utilized:
   ReportingVersion:
     Type: String
     Default: "Null"
@@ -65,6 +72,7 @@ Parameters:
     Default: 'arn:aws:iam::'
     Description: SSL Certficate ARN for SSL Certficate
 
+  # CookBook Utilized:
   SignupDisable:
     Type: String
     Default: 'true'
@@ -73,26 +81,31 @@ Parameters:
       - 'false'
     Description: Enter True/False for signup disable (false by default)
 
+  # CookBook Utilized:
   SupportEmail:
     Type: String
     Default: atat@hearst.com
     Description: Enter Support Email for Chef Server (Optional)
 
+  # CookBook Utilized:
   MailHost:
     Type: String
     Default: smtp.mailgun.org
     Description: Enter Mail Host (Optional)
 
+  # CookBook Utilized:
   MailPort:
     Type: String
     Default: '587'
     Description: Enter Port for Mail Host (Optional)
 
+  # CookBook Utilized:
   ChefDir:
     Type: String
     Default: "/root/chef"
     Description: Enter location for client.rb, role.json, & berks functions/creation
 
+  # CookBook Utilized:
   LicenseCount:
     Type: String
     Default: '25'
@@ -106,11 +119,13 @@ Parameters:
       - 'false'
     Description: Set true only if you have an existing PostgreSQL Instance
 
+ # CookBook Utilized: Pulls from citadel
   DBUser:
     Type: String
     Default: ''
     Description: Enter DB User Name (Used for both existing and new DB)
 
+  # CookBook Utilized: Pulls from citadel
   DBPassword:
     Type: String
     NoEcho: 'true'
@@ -148,6 +163,7 @@ Parameters:
       - 'false'
     Description: Choose only if existing install (i.e.; Previous External DB and Existing S3 Bucket)
 
+  # CookBook Utilized: Pulls from citadel
   MailCreds:
     Type: String
     NoEcho: 'true'
@@ -159,6 +175,7 @@ Parameters:
     Default: chef_ha_stack
     Description: Enter New Relic Application Name
 
+  # CookBook Utilized: Pulls from citadel
   NewRelicLicense:
     Type: String
     NoEcho: 'true'
@@ -187,12 +204,14 @@ Parameters:
     Default: ''
     Description: Enter Sumologic Access ID
 
+  # CookBook Utilized: Pulls from citadel
   SumologicAccessKey:
     Type: String
     NoEcho: 'true'
     Default: ''
     Description: Enter Sumologic Access Key
 
+  # CookBook Utilized: Pulls from citadel
   SumologicPassword:
     Type: String
     NoEcho: 'true'
@@ -383,15 +402,20 @@ Mappings:
     eu-west-1:
       HVM64: ami-844e0bf7
 
+# Conditions to trigger off parameters choices
 Conditions:
+  # Will let ChefBucket resource know if to create or not based on param choice
   CreateChefBucket:
     !Equals [ !Ref UseExistingBucket, false ]
+  # Will let PrimaryElasticLoadBalancer resource know if to use 80/443 on app side connection.
   BackendSSLCon:
     !Equals [ !Ref BackendSSL, true ]
+  # Will let ChefDB resource know if to create or not, this allows a user to use an exisitng DB if they wish
   DBCon:
     !Equals [ !Ref ExistingDB, false ]
 
 Resources:
+  # Create the necessary subnets for ELB
   SubnetA:
     Type: AWS::EC2::Subnet
     Properties:
@@ -402,7 +426,7 @@ Resources:
         - Name: !Sub ${ChefSubdomain}-Public-Subnet-A
         - Application: !Ref AWS::StackId
         - Network: "Public"
-
+  # Create the necessary subnets for ELB
   SubnetB:
     Type: AWS::EC2::Subnet
     Properties:
@@ -413,7 +437,7 @@ Resources:
         - Name: !Sub ${ChefSubdomain}-Public-Subnet-B
         - Application: !Ref AWS::StackId
         - Network: "Public"
-
+  # Create the necessary subnets for ELB
   SubnetC:
     Type: AWS::EC2::Subnet
     Properties:
@@ -424,7 +448,7 @@ Resources:
       - Name: !Sub ${ChefSubdomain}-Public-Subnet-C
       - Application: !Ref AWS::StackId
       - Network: "Public"
-
+  # Create the necessary subnet for RDS PostgreSQL
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Condition: DBCon
@@ -437,9 +461,10 @@ Resources:
       Tags:
         -
           Name: !Sub "${ChefSubdomain} DB Subnet Group"
-
+  # If condition statements are met, a bucket will be created to store citadel and other info in
   ChefBucket:
     Type: AWS::S3::Bucket
+    # conditional look up, if true then creates this resource.
     Condition: CreateChefBucket
     DeletionPolicy: Retain
     Properties:
@@ -469,6 +494,7 @@ Resources:
               {
                   "Effect":"Allow",
                   "Action": [ "s3:*" ],
+                  # Uses conditionals here to decide whether to pass in the created bucket or the existing one depending on parameter selected
                   "Resource": [ [ "Fn::Join": [ "", [ "arn:aws:s3:::", [ "Fn::If": CreateChefBucket, ${ChefBucket}, ${BucketName} ] ] ] ],
                                 [ "Fn::Join": [ "", [ "arn:aws:s3:::", [ "Fn::If": CreateChefBucket, ${ChefBucket}, ${BucketName} ], "/*" ] ] ] ]
               },
@@ -522,6 +548,7 @@ Resources:
         - PolicyName: PublicELBCookieStickinessPolicy
           CookieExpirationPeriod: '3600'
       Listeners:
+          # Uses conditionals to set 443 or 80 based on parameter selection
         - InstancePort: !If [ BackendSSLCon, 443, 80 ]
           LoadBalancerPort: '443'
           InstanceProtocol: HTTPS
@@ -530,6 +557,7 @@ Resources:
             - PublicELBCookieStickinessPolicy
           SSLCertificateId: !Ref SSLCertificateARN
       HealthCheck:
+        # Uses conditionals to determine if healthcheck hits 80 or 443
         Target: !If [ BackendSSLCon, "HTTPS:443/humans.txt", "HTTP:80/humans.txt" ]
         HealthyThreshold: '2'
         UnhealthyThreshold: '10'
@@ -544,6 +572,7 @@ Resources:
       HostedZoneName: !Sub "${HostedZone}."
       Comment: !Sub Zone apex alias targeted to ${ChefSubdomain} ELB.
       RecordSets:
+          # Create DNS A Record by joining ChefSubdomain + HostedZone
         - Name: !Join [ '', [ !Ref ChefSubdomain, ".", !Ref HostedZone, "." ] ]
           Type: A
           AliasTarget:
@@ -594,6 +623,7 @@ Resources:
           EC2SecurityGroupName: !Ref FrontendSecurityGroup
       GroupDescription: Frontend Access
 
+  # Backendless Setup 1 of 2: Sets up an external elasticsearch
   ElasticsearchDomain:
     Type: AWS::Elasticsearch::Domain
     Properties:
@@ -622,8 +652,10 @@ Resources:
       AdvancedOptions:
         rest.action.multi.allow_explicit_index: "true"
 
+  # Backendless Setup 2 of 2: Sets up external database
   ChefDB:
     Type: AWS::RDS::DBInstance
+    # Conditional look up, if true then creates this resource.
     Condition: DBCon
     Properties:
       DBName: !Sub ${ChefSubdomain}-db
@@ -680,9 +712,13 @@ Resources:
         "Fn::Base64": !Sub |
             #!/bin/bash -xev
 
+            # Sets s3 bucket based on conditionals
             BUCKET="Fn::If": [ CreateChefBucket, ${ChefBucket}, ${BucketName} ]
+            # Pulls elasticsearch URL from ElasticsearchDomain resource
             ELASTICURL="Fn:GetAtt": [ ElasticsearchDomain, DomainEndpoint ]
+            # Uses conditionals to determine if to pull DB URL from Parameters or ChefDB Resource
             DBENDPOINT="Fn::If": [ DBCon, ${DBURL}, "Fn::GetAtt": [ ChefDB, Endpoint.Address ] ]
+            # Uses conditionals to determine if to pull DB Port from Parameters or ChefDB Resource
             DBPORT="Fn::If": [ DBCon, ${DBPort} , "Fn::GetAtt": [ ChefDB, Endpoint.Port ] ]
 
             exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
@@ -908,6 +944,7 @@ Resources:
             # All is well so signal success and let CF know wait function is complete
             /usr/local/bin/cfn-signal -e 0 -r 'Server setup complete' ${WaitHandle}
 
+  # Wait setups to force EC2 instances to now show cloudformation complete until the Userdata (backend cookbook) has completely succesfully
   WaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
   WaitCondition:
