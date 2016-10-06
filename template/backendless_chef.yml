@@ -132,11 +132,13 @@ Parameters:
     Default: ''
     Description: Enter DB Password (Used for both existing and new DB)
 
+  # CookBook Utilized:
   DBPort:
     Type: String
     Default: '5432'
     Description: Enter DB Port (Only Required if Using Existing DB)
 
+  # CookBook Utilized:
   DBURL:
     Type: String
     Default: ''
@@ -155,6 +157,7 @@ Parameters:
     Default: ''
     Description: Leave Empty! Unless using existing bucket, then enter bucket name here
 
+  # CookBook Utilized:
   ExistingInstall:
     Type: String
     Default: 'true'
@@ -170,6 +173,7 @@ Parameters:
     Default: ''
     Description: Enter Mail Credentials (e.g.; $username:$password)
 
+  # CookBook Utilized:
   NewRelicAppName:
     Type: String
     Default: chef_ha_stack
@@ -182,6 +186,7 @@ Parameters:
     Default: ''
     Description: Enter New Relic License Key
 
+  # CookBook Utilized:
   NewRelicEnable:
     Type: String
     Default: 'true'
@@ -190,6 +195,7 @@ Parameters:
       - 'false'
     Description: Choose to enable/disable New Relic
 
+  # CookBook Utilized:
   SumologicEnable:
     Type: String
     Default: 'true'
@@ -218,21 +224,25 @@ Parameters:
     Default: ''
     Description: Enter Sumologic Password
 
+  # CookBook Utilized:
   S3Dir:
     Type: String
     Default: "/opt/chef-s3"
     Description: Path to mount S3 Bucket to (created during CFN run)
 
+  # Berks Vendored
   Cookbook:
     Type: String
     Default: backendless_chef
     Description: Cookbook Name
 
+  # Berks Vendored
   CookbookGit:
     Type: String
     Default: https://github.com/HearstAT/cookbook_backendless_chef
     Description: Git Clone URI for Cookbook
 
+  # Berks Vendored
   CookbookGitBranch:
     Type: String
     Default: master
@@ -247,6 +257,7 @@ Parameters:
     Type: AWS::EC2::SecurityGroup::Id
     Default: ''
 
+  # CookBook Utilized:
   BackupEnable:
     Type: String
     Default: 'true'
@@ -273,21 +284,6 @@ Parameters:
   VPC:
     Description: Choose VPC to use
     Type: AWS::EC2::VPC::Id
-    Default: ''
-
-  AvailabilityZoneA:
-    Description: Choose Availability Zone to use
-    Type: AWS::EC2::AvailabilityZone::Name
-    Default: ''
-
-  AvailabilityZoneB:
-    Description: Choose Availability Zone to use
-    Type: AWS::EC2::AvailabilityZone::Name
-    Default: ''
-
-  AvailabilityZoneC:
-    Description: Choose Availability Zone to use
-    Type: AWS::EC2::AvailabilityZone::Name
     Default: ''
 
   InstanceType:
@@ -392,9 +388,7 @@ Metadata:
         - CIDRA
         - CIDRB
         - CIDRC
-        - AvailabilityZoneA
-        - AvailabilityZoneB
-        - AvailabilityZoneC
+
 Mappings:
   RegionMap:
     us-west-2:
@@ -420,9 +414,11 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      AvailabilityZone: !Ref AvailabilityZoneA
+      # Get Availability Zones and select first in string
+      AvailabilityZone: !Select [ 0, Fn::GetAZs: "" ]
       CidrBlock: !Ref CIDRA
       Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
         - Name: !Sub ${ChefSubdomain}-Public-Subnet-A
         - Application: !Ref AWS::StackId
         - Network: "Public"
@@ -431,9 +427,11 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      AvailabilityZone: !Ref AvailabilityZoneB
+      # Get Availability Zones and select second in string
+      AvailabilityZone: !Select [ 1, Fn::GetAZs: "" ]
       CidrBlock: !Ref CIDRB
       Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
         - Name: !Sub ${ChefSubdomain}-Public-Subnet-B
         - Application: !Ref AWS::StackId
         - Network: "Public"
@@ -442,9 +440,11 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      AvailabilityZone: !Ref AvailabilityZoneC
+      # Get Availability Zones and select third in string
+      AvailabilityZone: !Select [ 2, Fn::GetAZs: "" ]
       CidrBlock: !Ref CIDRC
       Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
       - Name: !Sub ${ChefSubdomain}-Public-Subnet-C
       - Application: !Ref AWS::StackId
       - Network: "Public"
@@ -460,6 +460,7 @@ Resources:
           - !Ref SubnetC
       Tags:
         -
+          # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
           Name: !Sub "${ChefSubdomain} DB Subnet Group"
   # If condition statements are met, a bucket will be created to store citadel and other info in
   ChefBucket:
@@ -486,6 +487,7 @@ Resources:
   RolePolicies:
     Type: AWS::IAM::Policy
     Properties:
+      # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
         PolicyName: !Sub ${ChefSubdomain}-S3Role-${AWS::Region}
         PolicyDocument: !Sub |
           {
@@ -533,6 +535,7 @@ Resources:
         ToPort: '65535'
         CidrIp: 0.0.0.0/0
       Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
       - Name: !Sub ${ChefSubdomain}-ELB-SecurityGroup
 
   PrimaryElasticLoadBalancer:
@@ -564,11 +567,13 @@ Resources:
         Interval: '90'
         Timeout: '60'
       Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
         - Name: !Sub ${ChefSubdomain}-ELB
 
   ChefDNS:
     Type: AWS::Route53::RecordSetGroup
     Properties:
+      # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
       HostedZoneName: !Sub "${HostedZone}."
       Comment: !Sub Zone apex alias targeted to ${ChefSubdomain} ELB.
       RecordSets:
@@ -611,6 +616,7 @@ Resources:
           ToPort: '65535'
           CidrIp: 0.0.0.0/0
       Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
         - Name: !Sub ${ChefSubdomain}-Frontend-Security-Group
 
   ChefDBSecurityGroup:
@@ -658,6 +664,7 @@ Resources:
     # Conditional look up, if true then creates this resource.
     Condition: DBCon
     Properties:
+      # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
       DBName: !Sub ${ChefSubdomain}-db
       AllocatedStorage: 50
       DBInstanceClass:  db.t2.large
@@ -670,6 +677,7 @@ Resources:
       DBSubnetGroupName: !Ref DBSubnetGroup
       MonitoringInterval: 5
       Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
         - Name: !Sub "${ChefSubdomain} Database"
     DeletionPolicy: "Snapshot"
 
@@ -690,6 +698,7 @@ Resources:
       LoadBalancerNames:
       - !Ref PrimaryElasticLoadBalancer
       Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
       - Name: !Sub ${ChefSubdomain}-Scale-Group
         PropagateAtLaunch: 'true'
 
@@ -709,7 +718,10 @@ Resources:
             VolumeSize: '15'
       IamInstanceProfile: !Ref ChefInstanceProfile
       UserData:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
+        # Since sub is being used, cannot use ${} for bash variables, only $VARIABLE won't trigger validation/build errors.
         "Fn::Base64": !Sub |
+
             #!/bin/bash -xev
 
             # Sets s3 bucket based on conditionals
