@@ -627,7 +627,7 @@ Resources:
       DBSecurityGroupIngress:
         -
           EC2SecurityGroupName: !Ref FrontendSecurityGroup
-      GroupDescription: Frontend Access
+      GroupDescription: "Frontend Access"
 
   # Backendless Setup 1 of 2: Sets up an external elasticsearch
   ElasticsearchDomain:

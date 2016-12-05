@@ -1,0 +1,853 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  AWS HA Chef Server 2.0 - Backendless Chef - Ubuntu Xenial Based
+  "Backendless" Chef utilizing AWS as Backend for PostgreSQL and Elasticsearch
+  Sets up the following:
+    Backendless Items
+    * Elasticsearch 2.3 Cluster
+    * PostgreSQL 9.5.4
+
+Parameters:
+
+  ## Domain Configuration
+  HostedZone:
+    Type: String
+    Default: domain.com
+    Description: must match a route53 hosted domain/zone
+
+  SSLCertificateARN:
+    Type: String
+    Default: 'arn:aws:iam::'
+    Description: SSL Certficate ARN for SSL Certficate
+
+  ## Bucket Configuration
+  ExistingBucketName:
+    Type: String
+    Default: ''
+    Description: Leave Empty to disable, only fill out if using an existing bucket
+
+  ## Re-Deploy Configuration
+  ExistingInstall:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Choose only if existing install (i.e.; Previous External DB and Existing S3 Bucket)
+
+  ## Chef Configuration
+  ChefSubdomain:
+    Type: String
+    Default: chef-a
+    AllowedValues:
+      - chef-a
+      - chef-b
+      - chef-test
+    Description: subdomain/prefix for chose hosted zone used for staging
+
+  ChefServerVersion:
+    Type: String
+    Default: "12.11.1"
+    AllowedValues:
+      - "12.11.1"
+      - "12.11.0"
+      - "12.10.0"
+      - "12.9.1"
+      - "12.9.0"
+    Description: Choose Version of Chef Server to Install (All Supported/Tested Versions listed)
+
+  ManageVersion:
+    Type: String
+    Default: "2.4.4"
+    AllowedValues:
+      - "2.4.4"
+      - "2.4.3"
+      - "2.4.2"
+      - "2.4.1"
+    Description: Choose Version of Chef Manage to Install (All Supported/Tested Versions listed)
+
+  ReportingVersion:
+    Type: String
+    Default: "1.6.4"
+    AllowedValues:
+      - "1.6.4"
+    Description: Choose Version of Chef Reporting to Install (All Supported Versions listed)
+
+  DisableSignup:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Enter True/False for signup disable (false by default)
+
+  LicenseCount:
+    Type: String
+    Default: '25'
+    Description: Enter how many licenses you have purchased
+
+  BackupEnable:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Select True/False if you wanted to enable backups
+
+  SupportEmail:
+    Type: String
+    Default: atat@hearst.com
+    Description: Enter Support Email for Chef Server (Optional)
+
+  S3Dir:
+    Type: String
+    Default: "/opt/chef-s3"
+    Description: Path to mount S3 Bucket to (created during CFN run)
+
+  ## Database Configuration
+  DBUser:
+    Type: String
+    Default: ''
+    Description: Enter DB User Name (Required)
+
+  DBPassword:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter DB Password (Required)
+
+  DBPort:
+    Type: String
+    Default: '5432'
+    Description: Enter DB Port (External/Existing Only - Leave Empty to ignore)
+
+  DBURL:
+    Type: String
+    Default: ''
+    Description: Enter DB URL or VIP (External/Existing Only - Leave Empty to ignore)
+
+  ## Mail Configuration
+  MailHost:
+    Type: String
+    Default: smtp.mailgun.org
+    Description: Enter Mail Host (Optional)
+
+  MailPort:
+    Type: String
+    Default: '587'
+    Description: Enter Port for Mail Host (Optional)
+
+  MailCreds:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter Mail Credentials (e.g.; $username:$password)
+
+  ## New Relic Configuration
+  NewRelicAppName:
+    Type: String
+    Default: chef_ha_stack
+    Description: Enter New Relic Application Name
+
+  NewRelicLicense:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter New Relic License Key
+
+  ## Sumologic Configuration
+  SumologicAccessID:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter Sumologic Access ID
+
+  SumologicAccessKey:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter Sumologic Access Key
+
+  SumologicPassword:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter Sumologic Password
+
+  ## Instance/Network Configuration
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+
+  SSHSecurityGroup:
+    Description: Select Security Group for SSH Access
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: ''
+
+  InstanceType:
+    Type: String
+    Default: c4.large
+    AllowedValues:
+      - m3.medium
+      - m3.large
+      - m3.xlarge
+      - m3.2xlarge
+      - c3.large
+      - c3.xlarge
+      - c3.2xlarge
+      - c3.4xlarge
+      - c3.8xlarge
+      - c4.large
+      - c4.xlarge
+      - c4.2xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+
+  VPC:
+    Description: Choose VPC to use
+    Type: AWS::EC2::VPC::Id
+    Default: ''
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    -
+      Label:
+        default: Domain Configuration
+      Parameters:
+        - HostedZone
+        - SSLCertificateARN
+    -
+      Label:
+        default: Bucket Configuration (Optional  - Leave Blank to Disable)
+      Parameters:
+        - ExistingBucketName
+    -
+      Label:
+        default: Chef Configuration
+      Parameters:
+        - ChefSubdomain
+        - SignupDisable
+        - SupportEmail
+        - LicenseCount
+        - S3Dir
+        - BackupEnable
+        - ChefServerVersion
+        - ManageVersion
+        - ReportingVersion
+    -
+      Label:
+        default: Database Configuration
+      Parameters:
+        - ExistingDB
+        - DBUser
+        - DBPassword
+        - DBPort
+        - DBURL
+    -
+      Label:
+        default: Mail Configuration (Optional  - Leave Blank to Disable)
+      Parameters:
+        - MailCreds
+        - MailHost
+        - MailPort
+    -
+      Label:
+        default: New Relic Configuration (Optional - Leave Blank to Disable)
+      Parameters:
+        - NewRelicAppName
+        - NewRelicLicense
+    -
+      Label:
+        default: Sumologic Configuration (Optional  - Leave Blank to Disable)
+      Parameters:
+        - SumologicAccessID
+        - SumologicAccessKey
+        - SumologicPassword
+    -
+      Label:
+        default: Re-Deploy Configuration (When Using Existing Items)
+      Parameters:
+        - ExistingInstall
+    -
+      Label:
+        default: Instance & Network Configuration
+      Parameters:
+        - InstanceType
+        - KeyName
+        - VPC
+        - SSHSecurityGroup
+
+Conditions:
+  # Sets hardcoded options based on which domain is being created
+  # Avoids issues when doing blue/green deployment
+  ChefSubdomainCon:
+    !Equals [ !Ref ChefSubdomain, 'chef-a' ]
+  # Will create bucket for chef if no bucket entered for secrets
+  ChefBucketCon:
+    !Equals [ !Ref ExistingBucketName, '' ]
+  # Will create database if no exisitng URL is provided
+  DBCon:
+    !Equals [ !Ref DBURL, '' ]
+
+Mappings:
+  RegionMap:
+    us-west-2:
+      HVM64: ami-167ba776
+    eu-west-1:
+      HVM64: ami-844e0bf7
+
+Resources:
+
+###############################################################################
+# Subnets
+###############################################################################
+
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      # Get Availability Zones and select First in string
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      # Selects subnet range based on Subdomain, avoids blue/green deployment failures
+      CidrBlock: !If [ ChefSubdomainCon, 172.33.10.0/24, 172.33.11.0/24 ]
+      Tags:
+        - Key: Name
+          Value: Public-Subnet-A
+        - Key: Application
+          Value: !Ref AWS::StackId
+        - Key: Network
+          Value: "Public"
+
+  SubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      # Get Availability Zones and select Second in string
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      # Selects subnet range based on Subdomain, avoids blue/green deployment failures
+      CidrBlock: !If [ ChefSubdomainCon, 172.33.20.0/24, 172.33.21.0/24 ]
+      Tags:
+        - Key: Name
+          Value: Public-Subnet-B
+        - Key: Application
+          Value: !Ref AWS::StackId
+        - Key: Network
+          Value: "Public"
+
+  SubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      # Get Availability Zones and select Third in string
+      AvailabilityZone: !Select [ 2, !GetAZs "" ]
+      # Selects subnet range based on Subdomain, avoids blue/green deployment failures
+      CidrBlock: !If [ ChefSubdomainCon, 172.33.30.0/24, 172.33.31.0/24 ]
+      Tags:
+        - Key: Name
+          Value: Public-Subnet-C
+        - Key: Application
+          Value: !Ref AWS::StackId
+        - Key: Network
+          Value: "Public"
+
+  # Create the necessary subnet for RDS PostgreSQL
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Chef DB Subnet Group"
+      SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+      Tags:
+        - Key: Name
+          Value: !Sub "${ChefSubdomain} DB Subnet Group"
+
+###############################################################################
+# S3 Buckets
+###############################################################################
+
+  ChefBucket:
+    Type: AWS::S3::Bucket
+    # conditional look up, if true then creates this resource.
+    Condition: ChefBucketCon
+    DeletionPolicy: Retain
+    Properties:
+      AccessControl: Private
+
+###############################################################################
+# Security: IAM, Groups, Instance Profiles
+###############################################################################
+
+  ChefInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+      - !Ref ChefRole
+
+  ChefRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+
+  RolePolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub ${AWS::StackName}-ChefServer-Policy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        # Allow all actions to one bucket (the supplied one, or the one you provided)
+        - Action: s3:*
+          Effect: Allow
+          Resource:
+            - !Join ['', [ 'arn:aws:s3:::', !If [ChefBucketCon, !Ref ChefBucket, !Ref ExistingBucketName] ]]
+            - !Join ['', [ 'arn:aws:s3:::', !If [ChefBucketCon, !Ref ChefBucket, !Ref ExistingBucketName], '/*' ]]
+        # Allow ability to list all buckets
+        - Action: s3:List*
+          Effect: Allow
+          Resource: arn:aws:s3:::*
+        # Allow instances to read their own tags (needed for setup script below)
+        - Action: ec2:DescribeTags
+          Effect: Allow
+          Resource: "*"
+      Roles:
+      - !Ref ChefRole
+
+  ChefDBSecurityGroup:
+    Type: AWS::RDS::DBSecurityGroup
+    Properties:
+      EC2VpcId: !Ref VPC
+      DBSecurityGroupIngress:
+        - EC2SecurityGroupId: !Ref FrontendSecurityGroup
+      GroupDescription: "Chef Database Access Group"
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Setup Ingress/Egress for Chef Frontend Load Balancer
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: '0'
+        ToPort: '65535'
+        CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: Name
+        Value: !Sub ${ChefSubdomain}-ELB-SecurityGroup
+
+  FrontendSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Setup Ingress/Egress for Chef Frontend
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '9090'
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '9090'
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          SourceSecurityGroupId: !Ref SSHSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: '0'
+          ToPort: '65535'
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${ChefSubdomain}-Frontend-Security-Group
+
+###############################################################################
+# PostgreSQL DB
+###############################################################################
+
+  ChefDB:
+    Type: AWS::RDS::DBInstance
+    Condition: DBCon
+    DeletionPolicy: "Snapshot"
+    Properties:
+      DBName: !Sub ${ChefSubdomain}_db
+      AllocatedStorage: 50
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPassword
+      DBInstanceClass: db.t2.large
+      MultiAZ: true
+      Engine: postgres
+      EngineVersion: 9.5.4
+      AutoMinorVersionUpgrade: true
+      BackupRetentionPeriod: 35
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DBSecurityGroups: !Ref ChefDBSecurityGroup
+      PubliclyAccessible: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-pgdb
+
+###############################################################################
+# ElasticSearch
+###############################################################################
+
+  ElasticsearchDomain:
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      ElasticsearchVersion: 2.3
+      ElasticsearchClusterConfig:
+        InstanceCount: 2
+        ZoneAwarenessEnabled: false
+        InstanceType: m3.large.elasticsearch
+        DedicatedMasterEnabled: false
+      EBSOptions:
+        EBSEnabled: true
+        Iops: 0
+        VolumeSize: 20
+        VolumeType: gp2
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: "0"
+      AccessPolicies:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal: "*"
+            Action: "es:*"
+            Condition:
+              IpAddress:
+                "aws:sourceIp": [ !If [ ChefSubdomainCon, 172.33.10.0/24, 172.33.11.0/24 ], !If [ ChefSubdomainCon, 172.33.20.0/24, 172.33.21.0/24 ], !If [ ChefSubdomainCon, 172.33.30.0/24, 172.33.31.0/24 ] ]
+      AdvancedOptions:
+        rest.action.multi.allow_explicit_index: "true"
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-ES
+
+###############################################################################
+# Autoscaling
+###############################################################################
+
+  FrontendAutoScaleGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn:
+      - WaitCondition
+    Properties:
+      AvailabilityZones:
+        - !Select [ 0, !GetAZs "" ]
+        - !Select [ 1, !GetAZs "" ]
+        - !Select [ 2, !GetAZs "" ]
+      VPCZoneIdentifier:
+        - !Ref SubnetA
+        - !Ref SubnetB
+        - !Ref SubnetC
+      LaunchConfigurationName: !Ref ServerLaunchConfig
+      LoadBalancerNames:
+      - !Ref PrimaryElasticLoadBalancer
+      MaxSize: '3'
+      MinSize: '1'
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}-frontend
+        PropagateAtLaunch: true
+
+  FrontendAutoScaleUpPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref FrontendAutoScaleGroup
+      Cooldown: 60
+      ScalingAdjustment: 1
+
+  FrontendAutoScaleDownPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref FrontendAutoScaleGroup
+      Cooldown: 60
+      ScalingAdjustment: -1
+
+###############################################################################
+# LoadBalancer and DNS
+###############################################################################
+
+  PrimaryElasticLoadBalancer:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      CrossZone: true
+      HealthCheck:
+        HealthyThreshold: '2'
+        Interval: '90'
+        Target: HTTP:80/_status
+        Timeout: '60'
+        UnhealthyThreshold: '10'
+      Subnets:
+        - !Ref SubnetA
+        - !Ref SubnetB
+        - !Ref SubnetC
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+      LBCookieStickinessPolicy:
+        - PolicyName: PublicELBCookieStickinessPolicy
+          CookieExpirationPeriod: '3600'
+      Listeners:
+          # Uses conditionals to set 443 or 80 based on parameter selection
+        - InstancePort: '80'
+          LoadBalancerPort: '443'
+          InstanceProtocol: HTTP
+          Protocol: HTTPS
+          PolicyNames:
+            - PublicELBCookieStickinessPolicy
+          SSLCertificateId: !Ref SSLCertificateARN
+      Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
+        - Key: Name
+          Value: !Sub ${ChefSubdomain}-ELB
+
+  ChefDNS:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
+      HostedZoneName: !Sub "${HostedZone}."
+      Comment: !Sub Zone apex alias targeted to ${ChefSubdomain} ELB.
+      RecordSets:
+          # Create DNS A Record by joining ChefSubdomain + HostedZone
+        - Name: !Join [ '', [ !Ref ChefSubdomain, ".", !Ref HostedZone, "." ] ]
+          Type: A
+          AliasTarget:
+            HostedZoneId: !GetAtt PrimaryElasticLoadBalancer.CanonicalHostedZoneNameID
+            DNSName: !GetAtt PrimaryElasticLoadBalancer.CanonicalHostedZoneName
+
+###############################################################################
+# Instance Launch Configuration
+###############################################################################
+
+  ServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: !FindInMap [ RegionMap, !Ref "AWS::Region", HVM64 ]
+      AssociatePublicIpAddress: true
+      EbsOptimized: true
+      InstanceType: !Ref InstanceType
+      SecurityGroups:
+        - !Ref FrontendSecurityGroup
+        - !Ref SSHSecurityGroup
+      KeyName: !Ref KeyName
+      BlockDeviceMappings:
+      - DeviceName: /dev/sda1
+        Ebs:
+          VolumeSize: 20
+          VolumeType: gp2
+          DeleteOnTermination: true
+      IamInstanceProfile: !Ref ChefInstanceProfile
+      UserData:
+        "Fn::Base64":
+          "Fn::Sub":
+            - |
+              #!/bin/bash -xev
+
+              exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+
+              INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+              STACKNAME=${AWS::StackName}
+
+              apt-get update && apt-get -y upgrade
+              apt-get install -y wget curl python-setuptools python-pip git
+
+              # Install cfn bootstraping tools
+              if [ -z $(command -v cfn-signal) ]; then
+                  easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
+              fi
+
+              # Helper function to set wait timer
+              error_exit()
+              {
+                cfn-signal -e 1 -r "$1" "${WaitHandle}"
+                exit 1
+              }
+
+              # Install AWS Cli Tools
+              if [ -z $(command -v aws) ]; then
+                pip install awscli || error_exit "Failed to install aws cli"
+              fi
+
+              # Install S3FS Dependencies
+              sudo apt-get install -y automake autotools-dev g++ git libcurl4-gnutls-dev libfuse-dev libssl-dev libxml2-dev make pkg-config
+
+              # Install S3FS
+
+              # If directory exists, remove it
+              if [ -d "/tmp/s3fs-fuse" ]; then
+                rm -rf /tmp/s3fs-fuse
+              fi
+
+              # If s3fs command doesn't exist, install
+              if [ ! -f "/usr/local/bin/s3fs" ]; then
+                cd /tmp
+                git clone https://github.com/s3fs-fuse/s3fs-fuse.git || error_exit 'Failed to clone s3fs-fuse'
+                cd s3fs-fuse
+                ./autogen.sh || error_exit 'Failed to run autogen for s3fs-fuse'
+                ./configure || error_exit 'Failed to run configure for s3fs-fuse'
+                make || error_exit 'Failed to make s3fs-fuse'
+                sudo make install || error_exit 'Failed run make-install s3fs-fuse'
+              fi
+
+              # Create S3FS Mount Directory
+              if [ ! -d "${S3Dir}" ]; then
+                mkdir ${S3Dir}
+              fi
+
+              # Mount S3 Bucket to Directory
+              s3fs -o allow_other -o umask=000 -o iam_role=${ChefRole} -o endpoint=${AWS::Region} $BUCKET ${S3Dir} || error_exit 'Failed to mount s3fs'
+
+              echo -e "$BUCKET ${S3Dir} fuse.s3fs rw,_netdev,allow_other,umask=000,iam_role=${ChefRole},endpoint=${AWS::Region},retries=5,multireq_max=5 0 0" >> /etc/fstab || error_exit 'Failed to add mount info to fstab'
+
+              # Sleep to allow s3fs to connect
+              sleep 20
+
+              # Set hostname
+              hostname chef-fe-$(curl -sS http://169.254.169.254/latest/meta-data/instance-id).${HostedZone}  || error_exit 'Failed to set hostname'
+              echo  "chef-fe-$(curl -sS http://169.254.169.254/latest/meta-data/instance-id).${HostedZone}"  > /etc/hostname || error_exit 'Failed to set hostname file'
+
+              cat > '/etc/hosts' << EOF
+              127.0.0.1 $FQDN $HOSTNAME localhost
+              ::1 localhost6.localdomain6 localhost6
+              EOF
+
+              if [ ${ExistingInstall} == 'false' ]; then
+                  if [ ! -f ${S3Dir}/master ]; then
+                      echo $FQDN > ${S3Dir}/master
+                  fi
+                  MASTER=$(cat ${S3Dir}/master)
+              else
+                  MASTER=NULL
+              fi
+
+              CHEFSERVER=`mktemp`; wget "https://packages.chef.io/stable/ubuntu/16.04/chef-server-core_${ChefServerVersion}-1_amd64.deb" -qO $CHEFSERVER && sudo dpkg -i $CHEFSERVER; rm $CHEFSERVER
+
+              CHEFMANAGE=`mktemp`; wget "https://packages.chef.io/stable/ubuntu/16.04/chef-manage_${ManageVersion}-1_amd64.deb" -qO $CHEFMANAGE && sudo dpkg -i $CHEFMANAGE; rm $CHEFMANAGE
+
+              # CHEFREPORTING=`mktemp`; wget "https://packages.chef.io/stable/ubuntu/14.04/opscode-reporting_${ReportingVersion}-1_amd64.deb" -qO $CHEFREPORTING && sudo dpkg -i $CHEFREPORTING; rm $CHEFREPORTING
+
+              # make directories
+              mkdir -p ${S3Dir} /etc/chef-manage /etc/opscode
+
+              cat > '/etc/chef-manage/manage.rb' << EOF
+              disable_sign_up ${DisableSignup}
+              EOF
+
+              cat > '/etc/opscode/chef-server.rb' << EOF
+              api_fqdn '${CHEFURL}'.downcase
+              nginx['enable_non_ssl'] = true
+              license['nodes'] = ${LicenseCount}
+              postgresql['external'] = true
+              postgresql['vip'] = '${DBURL}'
+              postgresql['db_superuser'] = '${DBUser}'
+              postgresql['db_superuser_password'] = '${DBPassword}'
+              oc_chef_authz['http_init_count'] = 100
+              oc_chef_authz['http_queue_max'] = 200
+              opscode_erchef['authz_pooler_timeout'] = 2000
+              oc_bifrost['db_pool_init'] = 10
+              oc_bifrost['db_pool_max'] = 20
+              oc_bifrost['db_pool_queue_max'] = 40
+              opscode_erchef['depsolver_worker_count'] = 4
+              opscode_erchef['depsolver_timeout'] = 20000
+              opscode_erchef['db_pool_init'] = 10
+              opscode_erchef['db_pool_max'] = 20
+              opscode_erchef['db_pool_queue_max'] = 40
+              opscode_erchef['nginx_bookshelf_caching'] = :on
+              opscode_erchef['s3_url_expiry_window_size'] = '100%'
+              opscode_erchef['search_provider'] = 'elasticsearch'
+              opscode_erchef['search_queue_mode'] = 'batch'
+              opscode_solr4['external'] = true
+              opscode_solr4['external_url'] = 'https://${ELASTICURL}'
+              bookshelf['storage_type'] = :sql
+              rabbitmq['enable'] = false
+              rabbitmq['management_enabled'] = false
+              rabbitmq['queue_length_monitor_enabled'] = false
+              opscode_expander['enable'] = false
+              dark_launch['actions'] = false
+              EOF
+
+              # If we're not master, sync down the rest of the secrets first before reconfiguring
+              if [ -f ${S3Dir}/master ]; then
+                echo "[INFO] configuring this node as a regular Chef frontend"
+                aws s3 sync s3://${!BUCKET}/${!STACKNAME}/etc_opscode /etc/opscode
+                mkdir -p /var/opt/opscode/upgrades
+                touch /var/opt/opscode/bootstrapped
+                aws s3 cp s3://${!BUCKET}/${!STACKNAME}/migration-level /var/opt/opscode/upgrades/
+              else
+                echo "[INFO] configuring this node as a Bootstrap Chef frontend"
+                echo "[INFO] initializing ElasticSearch index manually"
+                curl -XPUT https://${ElasticsearchDomain.DomainEndpoint}/chef/ -d @/tmp/index_create.json
+              fi
+              if [ -z "${!BOOTSTRAP_TAGS}" ]; then
+                echo "[INFO] configuring this node as a regular Chef frontend"
+                aws s3 sync s3://${!BUCKET}/${!STACKNAME}/etc_opscode /etc/opscode
+                mkdir -p /var/opt/opscode/upgrades
+                touch /var/opt/opscode/bootstrapped
+                aws s3 cp s3://${!BUCKET}/${!STACKNAME}/migration-level /var/opt/opscode/upgrades/
+              else
+                echo "[INFO] configuring this node as a Bootstrap Chef frontend"
+                echo "[INFO] initializing ElasticSearch index manually"
+                curl -XPUT https://${ElasticsearchDomain.DomainEndpoint}/chef/ -d @/tmp/index_create.json
+              fi
+
+              # Configure the chef server
+              chef-server-ctl reconfigure --accept-license
+              chef-manage-ctl reconfigure --accept-license
+
+              # The master instance should sync files after reconfigure
+              if [ ! -f ${S3Dir}/master ]; then
+                echo "[INFO] syncing secrets up to S3"
+                aws s3 sync /etc/opscode s3://${!BUCKET}/${!STACKNAME}/etc_opscode
+                aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${!BUCKET}/${!STACKNAME}/
+              fi
+
+              # All is well so signal success and let CF know wait function is complete
+              /usr/local/bin/cfn-signal -e 0 -r 'Server setup complete' ${WaitHandle}
+            -
+              { DBENDPOINT: !GetAtt [ ChefDB, Endpoint.Address ],
+                DBPORT: !GetAtt [ ChefDB, Endpoint.Port ],
+                CHEFURL: !Join [ '', [ !Ref ChefSubdomain, ".", !Ref HostedZone ] ],
+                ELASTICURL: !GetAtt [ ElasticsearchDomain, DomainEndpoint ],
+                BUCKET: !If [ CreateChefBucket, ! Ref ChefBucket, !Ref ExistingBucketName ]
+              }
+
+  WaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+  WaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    DependsOn: ServerLaunchConfig
+    Properties:
+      Handle:  !Ref WaitHandle
+      Timeout: '2300'
