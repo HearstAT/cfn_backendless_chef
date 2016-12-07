@@ -186,4 +186,4 @@ cat > '/opt/SumoCollector/sources.json' << EOF
 }
 EOF
 
-systemctl --system daemon-reload && systemctl restart collector.service
+systemctl --system daemon-reload && systemctl restart collector.service || error_exit "Failed to start Sumo Collector Service"

@@ -21,20 +21,21 @@ Parameters:
     Default: 'arn:aws:iam::'
     Description: SSL Certficate ARN for SSL Certficate
 
-  ## Bucket Configuration
+  ## Re-Deploy Configuration
+  BackupFilename:
+    Type: String
+    Default: ''
+    Description: Enter the backup file to restore (e.g.; backup_06_Dec_16.tar)
+
   ExistingBucketName:
     Type: String
     Default: ''
-    Description: Leave Empty to disable, only fill out if using an existing bucket
+    Description: Enter a Existing Bucket Name to to use (Leave blank to create new)
 
-  ## Re-Deploy Configuration
-  ExistingInstall:
+  DBSnapShot:
     Type: String
-    Default: 'true'
-    AllowedValues:
-      - 'true'
-      - 'false'
-    Description: Choose only if existing install (i.e.; Previous External DB and Existing S3 Bucket)
+    Default: ''
+    Description: Enter ARN of DB Snapshot to Create Database From (Leave blank to create a fresh database)
 
   ## Chef Configuration
   ChefSubdomain:
@@ -215,9 +216,11 @@ Metadata:
         - SSLCertificateARN
     -
       Label:
-        default: Bucket Configuration (Optional  - Leave Blank to Disable)
+        default: Re-Deploy Options (Optional  - Leave Blank to Disable)
       Parameters:
+        - BackupFilename
         - ExistingBucketName
+        - DBSnapShot
     -
       Label:
         default: Chef Configuration
@@ -256,11 +259,6 @@ Metadata:
       Parameters:
         - SumologicAccessID
         - SumologicAccessKey
-    -
-      Label:
-        default: Re-Deploy Configuration (When Using Existing Items)
-      Parameters:
-        - ExistingInstall
     -
       Label:
         default: Instance & Network Configuration
@@ -503,6 +501,7 @@ Resources:
       MasterUsername: !Ref DBUser
       MasterUserPassword: !Ref DBPassword
       DBInstanceClass: db.t2.large
+      DBSnapshotIdentifier: !Ref DBSnapShot
       MultiAZ: true
       Engine: postgres
       EngineVersion: 9.5.4
@@ -539,11 +538,8 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: "Allow"
-            Principal: "*"
+            Principal: !GetAtt ChefRole.Arn
             Action: "es:*"
-            Condition:
-              IpAddress:
-                "aws:sourceIp": [ !If [ ChefSubdomainCon, 172.33.10.0/24, 172.33.11.0/24 ], !If [ ChefSubdomainCon, 172.33.20.0/24, 172.33.21.0/24 ], !If [ ChefSubdomainCon, 172.33.30.0/24, 172.33.31.0/24 ] ]
       AdvancedOptions:
         rest.action.multi.allow_explicit_index: "true"
       Tags:
@@ -887,6 +883,23 @@ Resources:
               if [ -n "${NewRelicAppName}" ]; then
                 wget -qO /root/newrelic.sh 'https://github.com/HearstAT/cfn_backendless_chef/raw/${GitBranch}/newrelic.sh' && bash /root/newrelic.sh ${NewRelicLicense} ${NewRelicAppName} ${DBURL} ${DBUser} ${DBPassword}
               fi
+
+              ##################################################
+              # Existing Install Options
+              ##################################################
+
+              if [ -n "${!BOOTSTRAP_TAGS}" ] && [ -n "${BackupFilename}" ]; then
+                aws s3 sync s3://${!BUCKET}/chef_ec_backups /tmp/backup_sync || error_exit "Failed to sync backup files from S3"
+                tar -xzf /tmp/backup_sync/${BackupFilename} --strip-components=1 || error_exit "Failed to extract backup"
+                /opt/opscode/embedded/bin/knife ec restore /tmp/backup -s https://${ChefSubdomain}.${HostedZone} --with-user-sql --skip-useracl --sql-host ${DBURL} || error_exit "Failed to restore Backup"
+                chef-server-ctl-reindex  --all-orgs || error_exit "Failed to re-index orgs from Backup"
+              fi
+
+
+              if [ -n "${!BOOTSTRAP_TAGS}" ] && [ -n "${DBSnapShot}" ]; then
+                chef-server-ctl-reindex  --all-orgs || error_exit "Failed to re-index orgs from DB Snapshot Setup"
+              fi
+
               ##################################################
               # Restart Chef Server
               ##################################################
@@ -910,6 +923,8 @@ Resources:
               fi
 
               if [ ! -f ${!BACKUP_HOME}/${!BACKUP_NAME}.tar ]; then
+                  rm -rf /tmp/backup/*
+
                   /opt/opscode/embedded/bin/knife ec backup /tmp/backup/ -s https://${!CHEF_SERVER} --with-user-sql
 
                   tar -czf ${!BACKUP_HOME}/${!BACKUP_NAME}.tar /tmp/backup/
@@ -917,8 +932,6 @@ Resources:
                   aws s3 sync ${!BACKUP_HOME} s3://${!BUCKET}/chef_ec_backups --delete
 
                   find ${!BACKUP_HOME}/* -mtime +10 -type f -delete
-
-                  rm -rf /tmp/backup/*
               fi
               EOF
 
@@ -942,7 +955,7 @@ Resources:
 
               /usr/local/bin/cfn-signal -e 0 -r 'Server setup complete' "${WaitHandle}"
 
-            - { DBENDPOINT: !GetAtt [ ChefDB, Endpoint.Address ], ELASTICURL: !GetAtt [ ElasticsearchDomain, DomainEndpoint ], BUCKET: !If [ CreateChefBucket, ! Ref ChefBucket, !Ref ExistingBucketName ] }
+            - { DBENDPOINT: !GetAtt ChefDB.Endpoint.Address, ELASTICURL: !GetAtt ElasticsearchDomain.DomainEndpoint, BUCKET: !If [ CreateChefBucket, ! Ref ChefBucket, !Ref ExistingBucketName ] }
 
   WaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
