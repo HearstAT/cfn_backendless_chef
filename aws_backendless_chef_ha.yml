@@ -858,6 +858,8 @@ Resources:
               api_fqdn '${ChefSubdomain}.${HostedZone}'.downcase
               fqdn "${!HOSTNAME}"
               nginx['enable_non_ssl'] = true
+              nginx['ssl_certificate_key'] = '/var/opt/opscode/nginx/ca/${ChefSubdomain}.${HostedZone}.key'
+              nginx['ssl_certificate'] = '/var/opt/opscode/nginx/ca/${ChefSubdomain}.${HostedZone}.crt'
               nginx['server_name'] = '${ChefSubdomain}.${HostedZone} chef.${HostedZone}'
               license['nodes'] = ${LicenseCount}
               postgresql['external'] = true
@@ -915,6 +917,13 @@ Resources:
 
               chef-server-ctl reconfigure --accept-license || error_exit "Chef Server Reconfigure Failed"
               chef-manage-ctl reconfigure --accept-license || error_exit "Chef Manage Reconfigure Failed"
+
+              ##################################################
+              # Non-SSl Multi Servername Alias Workaround
+              ##################################################
+
+              cp -f ${ChefSubdomain}.${HostedZone}\ chef.${HostedZone}.key ${ChefSubdomain}.${HostedZone}.key
+              cp -f ${ChefSubdomain}.${HostedZone}\ chef.${HostedZone}.crt ${ChefSubdomain}.${HostedZone}.crt
 
               ##################################################
               # If Bootstrap/Master Node, Sync Secrets
@@ -992,10 +1001,12 @@ Resources:
               fi
               EOF
 
-                touch /var/spool/cron/crontabs/root
+                chmod +x /root/chef_backup.sh
 
+                touch /var/spool/cron/crontabs/root
+                # Set to 0500 UTC (9pmPST|11pmCST)
                 crontab -l > chefbackup_cron
-                echo "00 00 * * * /root/chef_backup.sh" >> chefbackup_cron
+                echo "00 5 * * * /root/chef_backup.sh" >> chefbackup_cron
                 crontab chefbackup_cron
                 rm chefbackup_cron
               fi
