@@ -940,31 +940,36 @@ Resources:
               if [ "${BackupEnable}" == 'true' ] && [ -n "${!BOOTSTRAP_TAGS}" ]; then
               echo "Backup Enabled; Setting up Knife EC Backups"
               cat > '/root/chef_backup.sh' << EOF
-              #!/bin/bash
+              #!/bin/bash -xevu
 
               export BACKUP_NAME=backup_$(date +"%d_%b_%y")
-              export BACKUP_HOME="/tmp/backup_sync"
               export CHEF_SERVER="${ChefSubdomain}.${HostedZone}"
 
-              if [ ! -d "${!BACKUP_HOME}" ]; then
-                  mkdir -p ${!BACKUP_HOME}
+              if [ ! -d "/tmp/backup_sync" ]; then
+                  mkdir -p /tmp/backup_sync
               fi
 
-              if [ ! -f ${!BACKUP_HOME}/${!BACKUP_NAME}.tar ]; then
+              if [ ! -d "/tmp/backup" ]; then
+                  mkdir -p /tmp/backup
+              fi
+
+              if [ ! -f /tmp/backup_sync/${!BACKUP_NAME}.tar ]; then
                   rm -rf /tmp/backup/*
 
                   /opt/opscode/embedded/bin/knife ec backup /tmp/backup/ -s https://${!CHEF_SERVER} --with-user-sql
 
-                  tar -czf ${!BACKUP_HOME}/${!BACKUP_NAME}.tar /tmp/backup/
+                  tar -czf /tmp/backup_sync/${!BACKUP_NAME}.tar /tmp/backup/
 
-                  aws s3 sync ${!BACKUP_HOME} s3://${BUCKET}/chef_ec_backups --delete
+                  aws s3 sync /tmp/backup_sync s3://${BUCKET}/chef_ec_backups --delete
 
-                  find ${!BACKUP_HOME}/* -mtime +10 -type f -delete
+                  find /tmp/backup_sync/* -mtime +10 -type f -delete
               fi
               EOF
 
+                touch /var/spool/cron/crontabs/root
+
                 crontab -l > chefbackup_cron
-                echo "* * * 23 * /root/chef_backup.sh" >> chefbackup_cron
+                echo "00 00 * * * /root/chef_backup.sh" >> chefbackup_cron
                 crontab chefbackup_cron
                 rm chefbackup_cron
               fi
