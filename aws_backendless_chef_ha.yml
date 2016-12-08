@@ -914,6 +914,7 @@ Resources:
               ##################################################
 
               if [ -n "${!BOOTSTRAP_TAGS}" ] && [ -n "${BackupFilename}" ]; then
+                echo "Backup Restore Selected, restoring previos knife ec backup"
                 aws s3 sync s3://${BUCKET}/chef_ec_backups /tmp/backup_sync || error_exit "Failed to sync backup files from S3"
                 tar -xzf /tmp/backup_sync/${BackupFilename} --strip-components=1 || error_exit "Failed to extract backup"
                 /opt/opscode/embedded/bin/knife ec restore /tmp/backup -s https://${ChefSubdomain}.${HostedZone} --with-user-sql --skip-useracl --sql-host ${DBENDPOINT} || error_exit "Failed to restore Backup"
@@ -922,6 +923,7 @@ Resources:
 
 
               if [ -n "${!BOOTSTRAP_TAGS}" ] && [ -n "${DBSnapShot}" ]; then
+                echo "Existing DB, re-indexing orgs"
                 chef-server-ctl-reindex  --all-orgs || error_exit "Failed to re-index orgs from DB Snapshot Setup"
               fi
 
@@ -936,6 +938,7 @@ Resources:
               ##################################################
 
               if [ "${BackupEnable}" == 'true' ] && [ -n "${!BOOTSTRAP_TAGS}" ]; then
+              echo "Backup Enabled; Setting up Knife EC Backups"
               cat > '/root/chef_backup.sh' << EOF
               #!/bin/bash
 

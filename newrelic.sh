@@ -30,6 +30,10 @@ nrsysmond-config --set license_key=${LICENSE_KEY} || error_exit "Failed to set N
 
 pip install newrelic-plugin-agent || error_exit "Failed to install newrelic plugin agent"
 
+mkdir -p /var/run/newrelic /var/log/newrelic
+chown -R newrelic:newrelic /var/run/newrelic /var/log/newrelic
+chmod -R 775 /var/run/newrelic /var/log/newrelic
+
 cat > '/etc/newrelic/newrelic-plugin-agent.cfg' << EOF
 ---
 Application:
@@ -42,11 +46,11 @@ Application:
     port: 9999
     path: /nginx_status
 
-  Daemon:
+Daemon:
   user: newrelic
   pidfile: /var/run/newrelic/newrelic-plugin-agent.pid
 
-  Logging:
+Logging:
   formatters:
     verbose:
       format: '%(levelname) -10s %(asctime)s %(process)-6d %(processName) -15s %(threadName)-10s %(name) -25s %(funcName) -25s L%(lineno)-6d: %(message)s'
@@ -79,9 +83,7 @@ User=newrelic
 Group=newrelic
 PermissionsStartOnly=true
 PIDFile=/var/run/newrelic/newrelic-plugin-agent.pid
-ExecStartPre=/bin/mkdir -p /var/run/newrelic /var/log/newrelic
 ExecStartPre=/bin/rm -f /var/run/newrelic/newrelic-plugin-agent.pid
-ExecStartPre=/bin/chown -R newrelic:newrelic /var/run/newrelic
 ExecStart=/usr/local/bin/newrelic-plugin-agent -c /etc/newrelic/newrelic-plugin-agent.cfg
 ExecStop=/bin/kill -INT $MAINPID
 Restart=on-abort
@@ -97,7 +99,7 @@ EOF
 cat > '/root/newrelic.yml' << EOF
 production:
   license_key: ${LICENSE_KEY}
-  app_name: ${NewRelicAppName}
+  app_name: ${APP_NAME}
   agent_enabled: true
   monitor_mode: true
 EOF
