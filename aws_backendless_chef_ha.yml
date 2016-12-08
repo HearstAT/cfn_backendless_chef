@@ -113,10 +113,32 @@ Parameters:
     Default: ''
     Description: Enter DB Password (Required)
 
+  DBMultiAZ:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Select True or False for Multi AZ DB Setup
+
   DBURL:
     Type: String
     Default: ''
     Description: Enter DB URL or VIP (External/Existing Only - Leave Empty to ignore)
+
+  ## Elasticsearch Configuration
+  ElasticInstanceType:
+    Type: String
+    Default: t2.small.elasticsearch
+    AllowedValues:
+      - t2.micro.elasticsearch
+      - t2.small.elasticsearch
+      - t2.medium.elasticsearch
+      - m3.medium.elasticsearch
+      - m3.large.elasticsearch
+      - m3.xlarge.elasticsearch
+      - m3.2xlarge.elasticsearch
+    ConstraintDescription: must be a valid Elasticsearch instance type.
 
   ## Mail Configuration
   MailHost:
@@ -170,7 +192,7 @@ Parameters:
     Type: AWS::EC2::SecurityGroup::Id
     Default: ''
 
-  InstanceType:
+  ChefInstanceType:
     Type: String
     Default: c4.large
     AllowedValues:
@@ -233,7 +255,13 @@ Metadata:
       Parameters:
         - DBUser
         - DBPassword
+        - DBMultiAZ
         - DBURL
+    -
+      Label:
+        default: ElasticSearch Configuration
+      Parameters:
+        - ElasticInstanceType
     -
       Label:
         default: Mail Configuration (Optional  - Leave Blank to Disable)
@@ -257,7 +285,7 @@ Metadata:
       Label:
         default: Instance & Network Configuration
       Parameters:
-        - InstanceType
+        - ChefInstanceType
         - KeyName
         - VPC
         - SSHSecurityGroup
@@ -497,11 +525,12 @@ Resources:
       MasterUserPassword: !Ref DBPassword
       DBInstanceClass: db.t2.large
       DBSnapshotIdentifier: !Ref DBSnapShot
-      MultiAZ: true
+      MonitoringInterval: 5
+      MultiAZ: !Ref DBMultiAZ
       Engine: postgres
       EngineVersion: 9.5.4
       AutoMinorVersionUpgrade: true
-      BackupRetentionPeriod: 35
+      BackupRetentionPeriod: 14
       DBSubnetGroupName: !Ref DBSubnetGroup
       DBSecurityGroups:
         - !Ref ChefDBSecurityGroup
@@ -509,7 +538,6 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-pgdb
-          PropagateAtLaunch: true
 
 ###############################################################################
 # ElasticSearch
@@ -522,7 +550,7 @@ Resources:
       ElasticsearchClusterConfig:
         InstanceCount: 2
         ZoneAwarenessEnabled: false
-        InstanceType: m3.large.elasticsearch
+        InstanceType: !Ref ElasticInstanceType
         DedicatedMasterEnabled: false
       EBSOptions:
         EBSEnabled: true
@@ -543,7 +571,6 @@ Resources:
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-ES
-        PropagateAtLaunch: true
 
 ###############################################################################
 # Autoscaling
@@ -649,7 +676,6 @@ Resources:
         # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
         - Key: Name
           Value: !Sub ${ChefSubdomain}-ELB
-          PropagateAtLaunch: true
 
   ChefDNS:
     Type: AWS::Route53::RecordSetGroup
@@ -675,7 +701,7 @@ Resources:
       ImageId: !FindInMap [ RegionMap, !Ref "AWS::Region", HVM64 ]
       AssociatePublicIpAddress: true
       EbsOptimized: true
-      InstanceType: !Ref InstanceType
+      InstanceType: !Ref ChefInstanceType
       SecurityGroups:
         - !Ref FrontendSecurityGroup
         - !Ref SSHSecurityGroup
@@ -988,7 +1014,7 @@ Resources:
 
               /usr/local/bin/cfn-signal -e 0 -r 'Server setup complete' "${WaitHandle}"
 
-            - { DBENDPOINT: !If [ DBCon, !GetAtt ChefDB.Endpoint.Address, !Ref DBURL ], ELASTICURL: !GetAtt ElasticsearchDomain.DomainEndpoint, BUCKET: !If [ ChefBucketCon, ! Ref ChefBucket, !Ref ExistingBucketName ] }
+            - { DBENDPOINT: !If [ DBCon, !GetAtt ChefDB.Endpoint.Address, !Ref DBURL ], ELASTICURL: !GetAtt ElasticsearchDomain.DomainEndpoint, BUCKET: !If [ ChefBucketCon, !Ref ChefBucket, !Ref ExistingBucketName ] }
 
   WaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
