@@ -40,7 +40,7 @@ Parameters:
   ## Chef Configuration
   ChefSubdomain:
     Type: String
-    Default: chef-a
+    Default: chef-test
     AllowedValues:
       - chef-a
       - chef-b
@@ -77,11 +77,11 @@ Parameters:
 
   DisableSignup:
     Type: String
-    Default: 'false'
+    Default: 'true'
     AllowedValues:
       - 'true'
       - 'false'
-    Description: Enter True/False for signup disable (false by default)
+    Description: Enter True/False for signup disable (true by default)
 
   LicenseCount:
     Type: String
@@ -160,12 +160,6 @@ Parameters:
     Default: ''
     Description: Enter Sumologic Access Key
 
-  SumologicPassword:
-    Type: String
-    NoEcho: 'true'
-    Default: ''
-    Description: Enter Sumologic Password
-
   ## Instance/Network Configuration
   KeyName:
     Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
@@ -226,7 +220,7 @@ Metadata:
         default: Chef Configuration
       Parameters:
         - ChefSubdomain
-        - SignupDisable
+        - DisableSignup
         - SupportEmail
         - LicenseCount
         - BackupEnable
@@ -496,8 +490,9 @@ Resources:
     Condition: DBCon
     DeletionPolicy: "Snapshot"
     Properties:
-      DBName: !Sub ${ChefSubdomain}_db
+      DBName: 'chefdb'
       AllocatedStorage: 50
+      DBInstanceIdentifier: !Sub ${ChefSubdomain}-db
       MasterUsername: !Ref DBUser
       MasterUserPassword: !Ref DBPassword
       DBInstanceClass: db.t2.large
@@ -508,11 +503,13 @@ Resources:
       AutoMinorVersionUpgrade: true
       BackupRetentionPeriod: 35
       DBSubnetGroupName: !Ref DBSubnetGroup
-      DBSecurityGroups: !Ref ChefDBSecurityGroup
+      DBSecurityGroups:
+        - !Ref ChefDBSecurityGroup
       PubliclyAccessible: false
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-pgdb
+          PropagateAtLaunch: true
 
 ###############################################################################
 # ElasticSearch
@@ -538,13 +535,15 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: "Allow"
-            Principal: !GetAtt ChefRole.Arn
+            Principal:
+              AWS: !GetAtt ChefRole.Arn
             Action: "es:*"
       AdvancedOptions:
         rest.action.multi.allow_explicit_index: "true"
       Tags:
       - Key: Name
         Value: !Sub ${AWS::StackName}-ES
+        PropagateAtLaunch: true
 
 ###############################################################################
 # Autoscaling
@@ -650,6 +649,7 @@ Resources:
         # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
         - Key: Name
           Value: !Sub ${ChefSubdomain}-ELB
+          PropagateAtLaunch: true
 
   ChefDNS:
     Type: AWS::Route53::RecordSetGroup
@@ -747,7 +747,28 @@ Resources:
                 pip install aws-es-auth-proxy || error_exit "Failed to install ES Auth Proxy"
               fi
 
-              aws-es-auth-proxy --aws_service_endpoint ${ELASTICURL} || error_exit "Failed to initialize ES Auth Proxy"
+              cat > '/lib/systemd/system/aws-es-auth-proxy.service' << EOF
+              [Unit]
+              Description=aws-es-auth-proxy
+
+              [Service]
+              PrivateTmp=yes
+              User=root
+              Group=root
+              PermissionsStartOnly=true
+              PIDFile=/var/run/aws-es-auth-proxy/aws-es-auth-proxy.pid
+              ExecStartPre=/bin/mkdir -p /var/run/aws-es-auth-proxy /var/log/aws-es-auth-proxy
+              ExecStartPre=/bin/rm -f /var/run/aws-es-auth-proxy/aws-es-auth-proxy.pid
+              ExecStart=/usr/local/bin/aws-es-auth-proxy --aws_service_endpoint ${ELASTICURL}
+              ExecStop=/bin/kill -INT $MAINPID
+              Restart=on-abort
+
+              [Install]
+              WantedBy=multi-user.target
+              EOF
+
+              systemctl enable aws-es-auth-proxy || error_exit "Failed to enable ES Auth Proxy"
+              systemctl start aws-es-auth-proxy || error_exit "Failed to start ES Auth Proxy"
 
               ##################################################
               # Set Hostname and Hosts File
@@ -769,6 +790,8 @@ Resources:
               debconf-set-selections <<< "postfix postfix/mailname string chef.${HostedZone}" || error_exit "Failed to set Postfix Option: Mail Name"
               debconf-set-selections <<< "postfix postfix/relayhost string ${MailHost}" || error_exit "Failed to set Postfix Option: Relay Host"
 
+              mkdir -p /etc/postfix/
+
               cat > '/etc/postfix/sasl_passwd' << EOF
               ${MailHost} ${MailCreds}
               EOF
@@ -784,7 +807,7 @@ Resources:
               smtp_sasl_mechanism_filter = AUTH LOGIN
               EOF
 
-              systmctl restart postfix || error_exit "Failed to restart Postfix"
+              systemctl restart postfix || error_exit "Failed to restart Postfix"
 
               ##################################################
               # Install Chef Server with Manage and Reporting
@@ -794,11 +817,13 @@ Resources:
 
               CHEFMANAGE=$(mktemp); wget "https://packages.chef.io/stable/ubuntu/16.04/chef-manage_${ManageVersion}-1_amd64.deb" -qO $CHEFMANAGE && dpkg -i $CHEFMANAGE; rm $CHEFMANAGE  || error_exit "Failed to Install Chef Manage"
 
-              CHEFREPORTING=$(mktemp); wget "https://packages.chef.io/stable/ubuntu/14.04/opscode-reporting_${ReportingVersion}-1_amd64.deb" -qO $CHEFREPORTING && dpkg -i $CHEFREPORTING; rm $CHEFREPORTING "Failed to Install Chef Reporting"
+              CHEFREPORTING=$(mktemp); wget "https://packages.chef.io/stable/ubuntu/14.04/opscode-reporting_${ReportingVersion}-1_amd64.deb" -qO $CHEFREPORTING && dpkg -i $CHEFREPORTING; rm $CHEFREPORTING || "Failed to Install Chef Reporting"
+
+              mkdir -p /etc/chef-manage/ /etc/opscode/ /etc/opscode-reporting/
 
               cat > '/etc/chef-manage/manage.rb' << EOF
               disable_sign_up ${DisableSignup}
-              support_email_address ${SupportEmail}
+              support_email_address '${SupportEmail}'
               EOF
 
               cat > '/etc/opscode/chef-server.rb' << EOF
@@ -810,7 +835,7 @@ Resources:
               nginx['server_name'] = '${ChefSubdomain}.${HostedZone} chef.${HostedZone}'
               license['nodes'] = ${LicenseCount}
               postgresql['external'] = true
-              postgresql['vip'] = '${DBURL}'
+              postgresql['vip'] = '${DBENDPOINT}'
               postgresql['db_superuser'] = '${DBUser}'
               postgresql['db_superuser_password'] = '${DBPassword}'
               oc_chef_authz['http_init_count'] = 100
@@ -842,7 +867,7 @@ Resources:
               postgresql['external'] = true
               postgresql['db_superuser'] = '${DBUser}'
               postgresql['db_superuser_password'] = '${DBPassword}'
-              postgresql['vip'] = '${DBURL}'
+              postgresql['vip'] = '${DBENDPOINT}'
               EOF
 
               ##################################################
@@ -851,11 +876,11 @@ Resources:
 
               if [ -z "${!BOOTSTRAP_TAGS}" ]; then
                 echo "[INFO] configuring this node as a regular Chef frontend"
-                aws s3 sync s3://${!BUCKET}/etc_opscode /etc/opscode  || error_exit "Failed to sync existing Opscode Directory"
-                aws s3 sync s3://${!BUCKET}/etc_reporting /etc/opscode-reporting  || error_exit "Failed to synx existing Reporting Directory"
+                aws s3 sync s3://${BUCKET}/etc_opscode /etc/opscode  || error_exit "Failed to sync existing Opscode Directory"
+                aws s3 sync s3://${BUCKET}/etc_reporting /etc/opscode-reporting  || error_exit "Failed to synx existing Reporting Directory"
                 mkdir -p /var/opt/opscode/upgrades  || error_exit "Failed to create upgrades directory"
                 touch /var/opt/opscode/bootstrapped  || error_exit "Failed to create bootstrap file"
-                aws s3 cp s3://${!BUCKET}/migration-level /var/opt/opscode/upgrades/  || error_exit "Failed sync migration-level"
+                aws s3 cp s3://${BUCKET}/migration-level /var/opt/opscode/upgrades/  || error_exit "Failed sync migration-level"
               fi
 
               ##################################################
@@ -871,9 +896,9 @@ Resources:
 
               if [ -n "${!BOOTSTRAP_TAGS}" ]; then
                 echo "[INFO] syncing secrets up to S3"
-                aws s3 sync /etc/opscode s3://${!BUCKET}/etc_opscode  || error_exit "Failed to sync bootstrap opscode directory"
-                aws s3 sync /etc/opscode-reporting s3://${!BUCKET}/etc_reporting  || error_exit "Failed to sync bootstrap reporting directory"
-                aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${!BUCKET}/  || error_exit "Failed to sync bootstrap migration-level"
+                aws s3 sync /etc/opscode s3://${BUCKET}/etc_opscode  || error_exit "Failed to sync bootstrap opscode directory"
+                aws s3 sync /etc/opscode-reporting s3://${BUCKET}/etc_reporting  || error_exit "Failed to sync bootstrap reporting directory"
+                aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${BUCKET}/  || error_exit "Failed to sync bootstrap migration-level"
               fi
 
               ##################################################
@@ -881,7 +906,7 @@ Resources:
               ##################################################
               ## No need to for error_exit here, it's exported and utilized inside the script
               if [ -n "${NewRelicAppName}" ]; then
-                wget -qO /root/newrelic.sh 'https://github.com/HearstAT/cfn_backendless_chef/raw/${GitBranch}/newrelic.sh' && bash /root/newrelic.sh ${NewRelicLicense} ${NewRelicAppName} ${DBURL} ${DBUser} ${DBPassword}
+                wget -qO /root/newrelic.sh 'https://github.com/HearstAT/cfn_backendless_chef/raw/${GitBranch}/newrelic.sh' && bash /root/newrelic.sh ${NewRelicLicense} ${NewRelicAppName} ${DBENDPOINT} ${DBUser} ${DBPassword}
               fi
 
               ##################################################
@@ -889,9 +914,9 @@ Resources:
               ##################################################
 
               if [ -n "${!BOOTSTRAP_TAGS}" ] && [ -n "${BackupFilename}" ]; then
-                aws s3 sync s3://${!BUCKET}/chef_ec_backups /tmp/backup_sync || error_exit "Failed to sync backup files from S3"
+                aws s3 sync s3://${BUCKET}/chef_ec_backups /tmp/backup_sync || error_exit "Failed to sync backup files from S3"
                 tar -xzf /tmp/backup_sync/${BackupFilename} --strip-components=1 || error_exit "Failed to extract backup"
-                /opt/opscode/embedded/bin/knife ec restore /tmp/backup -s https://${ChefSubdomain}.${HostedZone} --with-user-sql --skip-useracl --sql-host ${DBURL} || error_exit "Failed to restore Backup"
+                /opt/opscode/embedded/bin/knife ec restore /tmp/backup -s https://${ChefSubdomain}.${HostedZone} --with-user-sql --skip-useracl --sql-host ${DBENDPOINT} || error_exit "Failed to restore Backup"
                 chef-server-ctl-reindex  --all-orgs || error_exit "Failed to re-index orgs from Backup"
               fi
 
@@ -929,7 +954,7 @@ Resources:
 
                   tar -czf ${!BACKUP_HOME}/${!BACKUP_NAME}.tar /tmp/backup/
 
-                  aws s3 sync ${!BACKUP_HOME} s3://${!BUCKET}/chef_ec_backups --delete
+                  aws s3 sync ${!BACKUP_HOME} s3://${BUCKET}/chef_ec_backups --delete
 
                   find ${!BACKUP_HOME}/* -mtime +10 -type f -delete
               fi
@@ -955,7 +980,7 @@ Resources:
 
               /usr/local/bin/cfn-signal -e 0 -r 'Server setup complete' "${WaitHandle}"
 
-            - { DBENDPOINT: !GetAtt ChefDB.Endpoint.Address, ELASTICURL: !GetAtt ElasticsearchDomain.DomainEndpoint, BUCKET: !If [ CreateChefBucket, ! Ref ChefBucket, !Ref ExistingBucketName ] }
+            - { DBENDPOINT: !If [ DBCon, !GetAtt ChefDB.Endpoint.Address, !Ref DBURL ], ELASTICURL: !GetAtt ElasticsearchDomain.DomainEndpoint, BUCKET: !If [ ChefBucketCon, ! Ref ChefBucket, !Ref ExistingBucketName ] }
 
   WaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
