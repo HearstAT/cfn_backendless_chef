@@ -13,9 +13,6 @@
 
 LICENSE_KEY=${1}
 APP_NAME=${2}
-DBURL=${3}
-DBUSER=${4}
-DBNAME=${5}
 
 #######################################################
 # Setup Newrelic Source List & Install System Monitor
@@ -23,7 +20,7 @@ DBNAME=${5}
 
 echo 'deb http://apt.newrelic.com/debian/ newrelic non-free' >> /etc/apt/sources.list.d/newrelic.list || error_exit "Failed to add New Relic to sources"
 wget -O- https://download.newrelic.com/548C16BF.gpg | apt-key add - || error_exit "Failes to add New Relic GPG Source Key"
-apt-get update && apt-get install newrelic-sysmond libpq-dev || error_exit "Failed to install new relic system monitor"
+apt-get update && apt-get install newrelic-sysmond || error_exit "Failed to install new relic system monitor"
 
 nrsysmond-config --set license_key=${LICENSE_KEY} || error_exit "Failed to set New Relic License on System Monitor"
 
@@ -39,23 +36,11 @@ Application:
   license_key: ${LICENSE_KEY}
   poll_interval: 60
 
-  elasticsearch:
-    name: ${APP_NAME}
-    host: 127.0.0.1
-    port: 8080
-
   nginx:
     name: ${APP_NAME}
     host: 127.0.0.1
     port: 9999
     path: /nginx_status
-
-  postgresql:
-    host: ${DBURL}
-    port: 5432
-    user: ${DBUSER}
-    dbname: ${DBNAME}
-    superuser: True
 
   Daemon:
   user: newrelic
@@ -82,8 +67,6 @@ Application:
       propagate: True
       handlers: [console, file]
 EOF
-
-pip install newrelic_plugin_agent[postgresql]
 
 cat > '/lib/systemd/system/newrelic-plugin-agent.service' << EOF
 [Unit]

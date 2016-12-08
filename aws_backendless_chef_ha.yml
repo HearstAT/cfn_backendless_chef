@@ -906,7 +906,7 @@ Resources:
               ##################################################
               ## No need to for error_exit here, it's exported and utilized inside the script
               if [ -n "${NewRelicAppName}" ]; then
-                wget -qO /root/newrelic.sh 'https://github.com/HearstAT/cfn_backendless_chef/raw/${GitBranch}/newrelic.sh' && bash /root/newrelic.sh ${NewRelicLicense} ${NewRelicAppName} ${DBENDPOINT} ${DBUser} ${DBPassword}
+                wget -qO /root/newrelic.sh 'https://github.com/HearstAT/cfn_backendless_chef/raw/${GitBranch}/newrelic.sh' && bash /root/newrelic.sh ${NewRelicLicense} ${NewRelicAppName}
               fi
 
               ##################################################
