@@ -72,7 +72,7 @@ Logging:
       handlers: [console, file]
 EOF
 
-cat > '/lib/systemd/system/newrelic-plugin-agent.service' << EOF
+cat > '/lib/systemd/system/newrelic-plugin-agent.service' << 'EOF'
 [Unit]
 Description=newrelic-plugin-agent
 

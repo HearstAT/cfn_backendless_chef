@@ -115,7 +115,7 @@ Parameters:
 
   DBInstanceType:
     Type: String
-    Default:  db.t2.large
+    Default: db.t2.large
     AllowedValues:
       - db.t2.medium
       - db.t2.large
@@ -242,7 +242,7 @@ Metadata:
         - SSLCertificateARN
     -
       Label:
-        default: Re-Deploy Options (Optional  - Leave Blank to Disable)
+        default: Re-Deploy Options (Optional - Leave Blank to Disable)
       Parameters:
         - BackupFilename
         - ExistingBucketName
@@ -787,7 +787,7 @@ Resources:
                 pip install aws-es-auth-proxy || error_exit "Failed to install ES Auth Proxy"
               fi
 
-              cat > '/lib/systemd/system/aws-es-auth-proxy.service' << EOF
+              cat > '/lib/systemd/system/aws-es-auth-proxy.service' << 'EOF'
               [Unit]
               Description=aws-es-auth-proxy
 
@@ -814,8 +814,8 @@ Resources:
               # Set Hostname and Hosts File
               ##################################################
 
-              hostname ${!HOSTNAME}  || error_exit 'Failed to set hostname'
-              echo "${!HOSTNAME}"  > /etc/hostname || error_exit 'Failed to set hostname file'
+              hostname ${!HOSTNAME} || error_exit 'Failed to set hostname'
+              echo "${!HOSTNAME}" > /etc/hostname || error_exit 'Failed to set hostname file'
 
               cat > '/etc/hosts' << EOF
               127.0.0.1 ${!HOSTNAME} ${!HOSTNAME%%.*} localhost
@@ -853,9 +853,9 @@ Resources:
               # Install Chef Server with Manage and Reporting
               ##################################################
 
-              CHEFSERVER=$(mktemp); wget "https://packages.chef.io/stable/ubuntu/16.04/chef-server-core_${ChefServerVersion}-1_amd64.deb" -qO $CHEFSERVER && dpkg -i $CHEFSERVER; rm $CHEFSERVER  || error_exit "Failed to install Chef Server"
+              CHEFSERVER=$(mktemp); wget "https://packages.chef.io/stable/ubuntu/16.04/chef-server-core_${ChefServerVersion}-1_amd64.deb" -qO $CHEFSERVER && dpkg -i $CHEFSERVER; rm $CHEFSERVER || error_exit "Failed to install Chef Server"
 
-              CHEFMANAGE=$(mktemp); wget "https://packages.chef.io/stable/ubuntu/16.04/chef-manage_${ManageVersion}-1_amd64.deb" -qO $CHEFMANAGE && dpkg -i $CHEFMANAGE; rm $CHEFMANAGE  || error_exit "Failed to Install Chef Manage"
+              CHEFMANAGE=$(mktemp); wget "https://packages.chef.io/stable/ubuntu/16.04/chef-manage_${ManageVersion}-1_amd64.deb" -qO $CHEFMANAGE && dpkg -i $CHEFMANAGE; rm $CHEFMANAGE || error_exit "Failed to Install Chef Manage"
 
               CHEFREPORTING=$(mktemp); wget "https://packages.chef.io/stable/ubuntu/14.04/opscode-reporting_${ReportingVersion}-1_amd64.deb" -qO $CHEFREPORTING && dpkg -i $CHEFREPORTING; rm $CHEFREPORTING || "Failed to Install Chef Reporting"
 
@@ -918,11 +918,11 @@ Resources:
 
               if [ -z "${!BOOTSTRAP_TAGS}" ]; then
                 echo "[INFO] configuring this node as a regular Chef frontend"
-                aws s3 sync s3://${BUCKET}/etc_opscode /etc/opscode  || error_exit "Failed to sync existing Opscode Directory"
-                aws s3 sync s3://${BUCKET}/etc_reporting /etc/opscode-reporting  || error_exit "Failed to synx existing Reporting Directory"
-                mkdir -p /var/opt/opscode/upgrades  || error_exit "Failed to create upgrades directory"
-                touch /var/opt/opscode/bootstrapped  || error_exit "Failed to create bootstrap file"
-                aws s3 cp s3://${BUCKET}/migration-level /var/opt/opscode/upgrades/  || error_exit "Failed sync migration-level"
+                aws s3 sync s3://${BUCKET}/etc_opscode /etc/opscode || error_exit "Failed to sync existing Opscode Directory"
+                aws s3 sync s3://${BUCKET}/etc_reporting /etc/opscode-reporting || error_exit "Failed to synx existing Reporting Directory"
+                mkdir -p /var/opt/opscode/upgrades || error_exit "Failed to create upgrades directory"
+                touch /var/opt/opscode/bootstrapped || error_exit "Failed to create bootstrap file"
+                aws s3 cp s3://${BUCKET}/migration-level /var/opt/opscode/upgrades/ || error_exit "Failed sync migration-level"
               fi
 
               ##################################################
@@ -945,9 +945,9 @@ Resources:
 
               if [ -n "${!BOOTSTRAP_TAGS}" ]; then
                 echo "[INFO] syncing secrets up to S3"
-                aws s3 sync /etc/opscode s3://${BUCKET}/etc_opscode  || error_exit "Failed to sync bootstrap opscode directory"
-                aws s3 sync /etc/opscode-reporting s3://${BUCKET}/etc_reporting  || error_exit "Failed to sync bootstrap reporting directory"
-                aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${BUCKET}/  || error_exit "Failed to sync bootstrap migration-level"
+                aws s3 sync /etc/opscode s3://${BUCKET}/etc_opscode || error_exit "Failed to sync bootstrap opscode directory"
+                aws s3 sync /etc/opscode-reporting s3://${BUCKET}/etc_reporting || error_exit "Failed to sync bootstrap reporting directory"
+                aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${BUCKET}/ || error_exit "Failed to sync bootstrap migration-level"
               fi
 
               ##################################################
@@ -967,13 +967,13 @@ Resources:
                 aws s3 sync s3://${BUCKET}/chef_ec_backups /tmp/backup_sync || error_exit "Failed to sync backup files from S3"
                 tar -xzf /tmp/backup_sync/${BackupFilename} --strip-components=1 || error_exit "Failed to extract backup"
                 /opt/opscode/embedded/bin/knife ec restore /tmp/backup -s https://${ChefSubdomain}.${HostedZone} --with-user-sql --skip-useracl --sql-host ${DBENDPOINT} || error_exit "Failed to restore Backup"
-                chef-server-ctl-reindex  --all-orgs || error_exit "Failed to re-index orgs from Backup"
+                chef-server-ctl-reindex --all-orgs || error_exit "Failed to re-index orgs from Backup"
               fi
 
 
               if [ -n "${!BOOTSTRAP_TAGS}" ] && [ -n "${DBSnapShot}" ]; then
                 echo "Existing DB, re-indexing orgs"
-                chef-server-ctl-reindex  --all-orgs || error_exit "Failed to re-index orgs from DB Snapshot Setup"
+                chef-server-ctl-reindex --all-orgs || error_exit "Failed to re-index orgs from DB Snapshot Setup"
               fi
 
               ##################################################
@@ -988,11 +988,10 @@ Resources:
 
               if [ "${BackupEnable}" == 'true' ] && [ -n "${!BOOTSTRAP_TAGS}" ]; then
               echo "Backup Enabled; Setting up Knife EC Backups"
-              cat > '/root/chef_backup.sh' << EOF
+              cat > '/root/chef_backup.sh' << 'EOF'
               #!/bin/bash -xevu
 
               export BACKUP_NAME=backup_$(date +"%d_%b_%y")
-              export CHEF_SERVER="${ChefSubdomain}.${HostedZone}"
 
               if [ ! -d "/tmp/backup_sync" ]; then
                   mkdir -p /tmp/backup_sync
@@ -1005,7 +1004,7 @@ Resources:
               if [ ! -f /tmp/backup_sync/${!BACKUP_NAME}.tar ]; then
                   rm -rf /tmp/backup/*
 
-                  /opt/opscode/embedded/bin/knife ec backup /tmp/backup/ -s https://${!CHEF_SERVER} --with-user-sql
+                  /opt/opscode/embedded/bin/knife ec backup /tmp/backup/ -s https://${ChefSubdomain}.${HostedZone} --with-user-sql --sql-host ${DBENDPOINT}
 
                   tar -czf /tmp/backup_sync/${!BACKUP_NAME}.tar /tmp/backup/
 
