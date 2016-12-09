@@ -113,6 +113,16 @@ Parameters:
     Default: ''
     Description: Enter DB Password (Required)
 
+  DBInstanceType:
+    Type: String
+    Default:  db.t2.large
+    AllowedValues:
+      - db.t2.medium
+      - db.t2.large
+      - db.m4.xlarge
+      - db.m4.2xlarge
+    ConstraintDescription: must be a valid Elasticsearch instance type.
+
   DBMultiAZ:
     Type: String
     Default: 'false'
@@ -255,6 +265,7 @@ Metadata:
       Parameters:
         - DBUser
         - DBPassword
+        - DBInstanceType
         - DBMultiAZ
         - DBURL
     -
@@ -389,7 +400,7 @@ Resources:
     Type: AWS::S3::Bucket
     # conditional look up, if true then creates this resource.
     Condition: ChefBucketCon
-    DeletionPolicy: Retain
+    DeletionPolicy: Delete
     Properties:
       AccessControl: Private
 
@@ -516,14 +527,14 @@ Resources:
   ChefDB:
     Type: AWS::RDS::DBInstance
     Condition: DBCon
-    DeletionPolicy: "Snapshot"
+    DeletionPolicy: Delete
     Properties:
       DBName: 'chefdb'
       AllocatedStorage: 50
       DBInstanceIdentifier: !Sub ${ChefSubdomain}-db
       MasterUsername: !Ref DBUser
       MasterUserPassword: !Ref DBPassword
-      DBInstanceClass: db.t2.large
+      DBInstanceClass: !Ref DBInstanceType
       DBSnapshotIdentifier: !Ref DBSnapShot
       MonitoringInterval: 5
       MultiAZ: !Ref DBMultiAZ
@@ -720,16 +731,6 @@ Resources:
               #!/bin/bash -xev
 
               ##################################################
-              # Global Variable Set
-              ##################################################
-
-              export DEBIAN_FRONTEND=noninteractive
-              export INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-              export BOOTSTRAP_TAGS=$(aws ec2 describe-tags --region ${AWS::Region} --filter "Name=resource-id,Values=$INSTANCE_ID" --output=text | grep BootstrapAutoScaleGroup)
-              export STACKNAME=${AWS::StackName}
-              export HOSTNAME=${ChefSubdomain}-fe-${!INSTANCE_ID}.${HostedZone}
-
-              ##################################################
               # Upgrade OS & Install Dependencies
               ##################################################
 
@@ -745,6 +746,27 @@ Resources:
               fi
 
               ##################################################
+              # Install AWS Cli Tools
+              ##################################################
+
+              if [ -z $(command -v aws) ]; then
+                # Something between the easy install and pip install are causing issues.
+                # Adding sleep to slow it down a bit to let whatever it is clear out.
+                sleep 5
+                pip install awscli
+              fi
+
+              ##################################################
+              # Global Variable Set
+              ##################################################
+
+              export DEBIAN_FRONTEND=noninteractive
+              export INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+              export BOOTSTRAP_TAGS=$(aws ec2 describe-tags --region ${AWS::Region} --filter "Name=resource-id,Values=$INSTANCE_ID" --output=text | grep BootstrapAutoScaleGroup)
+              export STACKNAME=${AWS::StackName}
+              export HOSTNAME=${ChefSubdomain}-fe-${!INSTANCE_ID}.${HostedZone}
+
+              ##################################################
               # Helper function to set wait timer
               ##################################################
 
@@ -755,14 +777,6 @@ Resources:
               }
 
               export -f error_exit
-
-              ##################################################
-              # Install AWS Cli Tools
-              ##################################################
-
-              if [ -z $(command -v aws) ]; then
-                pip install awscli || error_exit "Failed to install aws cli"
-              fi
 
               ##################################################
               # Install ES Proxy Auth
@@ -922,8 +936,8 @@ Resources:
               # Non-SSl Multi Servername Alias Workaround
               ##################################################
 
-              cp -f ${ChefSubdomain}.${HostedZone}\ chef.${HostedZone}.key ${ChefSubdomain}.${HostedZone}.key
-              cp -f ${ChefSubdomain}.${HostedZone}\ chef.${HostedZone}.crt ${ChefSubdomain}.${HostedZone}.crt
+              cp -f /var/opt/opscode/nginx/ca/${ChefSubdomain}.${HostedZone}\ chef.${HostedZone}.key /var/opt/opscode/nginx/ca/${ChefSubdomain}.${HostedZone}.key || error_exit "Failed to copy key for Chef NGINX Workaround"
+              cp -f /var/opt/opscode/nginx/ca/${ChefSubdomain}.${HostedZone}\ chef.${HostedZone}.crt /var/opt/opscode/nginx/ca/${ChefSubdomain}.${HostedZone}.crt || error_exit "Failed to copy cert for Chef NGINX Workaround"
 
               ##################################################
               # If Bootstrap/Master Node, Sync Secrets
@@ -1033,5 +1047,6 @@ Resources:
     Type: AWS::CloudFormation::WaitCondition
     DependsOn: ServerLaunchConfig
     Properties:
-      Handle:  !Ref WaitHandle
-      Timeout: '2300'
+      Count: 2
+      Handle: !Ref WaitHandle
+      Timeout: 2300
