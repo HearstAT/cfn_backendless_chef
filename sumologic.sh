@@ -156,6 +156,17 @@ cat > '/opt/SumoCollector/sources.json' << EOF
       "pathExpression": "/var/log/opscode/oc_bifrost/current"
     },
     {
+      "name": "chef_backup",
+      "sourceType": "LocalFile",
+      "automaticDateParsing": true,
+      "multilineProcessingEnabled": false,
+      "useAutolineMatching": true,
+      "forceTimeZone": false,
+      "timeZone": "UTC",
+      "category": "chef/backup",
+      "pathExpression": "/var/log/chef_backup.log"
+    },
+    {
       "name": "chef_manage_redis",
       "sourceType": "LocalFile",
       "automaticDateParsing": true,

@@ -615,7 +615,7 @@ Resources:
     Type: AWS::AutoScaling::AutoScalingGroup
     DependsOn:
       - BootstrapAutoScaleGroup
-      - WaitCondition
+      - BootstrapWaitCondition
     Properties:
       AvailabilityZones:
         - !Select [ 0, !GetAZs "" ]
@@ -766,13 +766,19 @@ Resources:
               export STACKNAME=${AWS::StackName}
               export HOSTNAME=${ChefSubdomain}-fe-${!INSTANCE_ID}.${HostedZone}
 
+              if [ -n "${!BOOTSTRAP_TAGS}" ]; then
+                export WAITHANDLE='${BootstrapWaitHandle}'
+              else
+                export WAITHANDLE='${FrontendWaitHandle}'
+              fi
+
               ##################################################
               # Helper function to set wait timer
               ##################################################
 
               error_exit()
               {
-                cfn-signal -e 1 -r "$1" "${WaitHandle}"
+                cfn-signal -e 1 -r "$1" "${!WAITHANDLE}"
                 exit 1
               }
 
@@ -991,6 +997,8 @@ Resources:
               cat > '/root/chef_backup.sh' << 'EOF'
               #!/bin/bash -xevu
 
+              exec &> /var/log/chef_backup.log
+
               export BACKUP_NAME=backup_$(date +"%d_%b_%y")
 
               if [ ! -d "/tmp/backup_sync" ]; then
@@ -1036,16 +1044,24 @@ Resources:
               # Send Success Signal to CFN Wait Handle
               ##################################################
 
-              /usr/local/bin/cfn-signal -e 0 -r 'Server setup complete' "${WaitHandle}"
+              /usr/local/bin/cfn-signal -e 0 -r 'Server setup complete' "${!WAITHANDLE}"
 
             - { DBENDPOINT: !If [ DBCon, !GetAtt ChefDB.Endpoint.Address, !Ref DBURL ], ELASTICURL: !GetAtt ElasticsearchDomain.DomainEndpoint, BUCKET: !If [ ChefBucketCon, !Ref ChefBucket, !Ref ExistingBucketName ] }
 
-  WaitHandle:
+  BootstrapWaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
-  WaitCondition:
+  BootstrapWaitCondition:
     Type: AWS::CloudFormation::WaitCondition
     DependsOn: ServerLaunchConfig
     Properties:
-      Count: 2
-      Handle: !Ref WaitHandle
+      Handle: !Ref BootstrapWaitHandle
+      Timeout: 2300
+
+  FrontendWaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+  FrontendWaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    DependsOn: BootstrapWaitCondition
+    Properties:
+      Handle: !Ref FrontendWaitHandle
       Timeout: 2300
