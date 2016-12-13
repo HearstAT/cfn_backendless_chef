@@ -38,7 +38,7 @@ Info you need to find/decide on to successfully build our Stack
     -   DBUser; Username for DB (Required for Existing or New Setups)
     -   DBPassword; Password for DB (Required for Existing or New Setups)
 -   Required Params to Select
-    -   ChefSubdomain; See [Blue/Green](#blue-green-deployment) Section for more Info
+    -   ChefSubdomain; See [Blue/Green](#bluegreen-deployment) Section for more Info
     -   ChefServerVersion; Select Version to install, versions listed are the only ones that have packages for Ubuntu Xenial
     -   ManageVersion; Select Version to install, versions listed are the only ones that have packages for Ubuntu Xenial
     -   ReportingVersion; Select Version to install, versions list are the only ones that support Elasticsearch
@@ -59,8 +59,8 @@ These are the items to best look when round 5k Nodes checking in
 
 #### Optional Setup
 
--   Restoring Setups; See the [Restore/Backup](#restore-backup-options) Section
--   NewRelic Setup; See the [NewRelic](#newrelic) Section
+-   Restoring Setups; See the [Restore/Backup](#restorebackup-options) Section
+-   NewRelic Setup; See the [NewRelic](#new-relic) Section
 -   Sumologic Setup; See the [Sumologic](#sumologic) Section
 
 ##### Mail Server Setup
@@ -104,14 +104,19 @@ Below describes how this is accomplished, but there is a manual step require to 
 -   Blue/Green Options:
     -   ChefSubdomain Param; Enabled having a chef-a, chef-b, and even a chef-test subdomain created
         -   Subnets are changed based on these settings
-    -   Server names are created based on the Subdomain and a prime chef.domain.com to support the multi-dns setup; [Code](aws_backendless_chef_ha.yml#L1095)
-    -   There is a workaround for the odd cert creation caused by the multiple server name setup; [Code 01](aws_backendless_chef_ha.yml#L1093-L1094), [Code 02](aws_backendless_chef_ha.yml#L1141-L1146)
+    -   Server names are created based on the Subdomain and a prime chef.domain.com to support the multi-dns setup; [Code](aws_backendless_chef_ha.yml#L1149)
+    -   There is a workaround for the odd cert creation caused by the multiple server name setup;
+        -   Specify Cert Location: [Code 01](aws_backendless_chef_ha.yml#L1147-L1148)
+        -   Copy badly name cert to expected one: [Code 02](aws_backendless_chef_ha.yml#L1194-L1200)
 
 **In place upgrades are not supported yet.**
 
 #### Subnet Switching
 
-To support using the blue/green domains. There is a switch in place depending on if you select chef-a or chef-b; [Code 01](aws_backendless_chef_ha.yml#L351-L398)
+To support using the blue/green domains. There is a switch in place depending on if you select chef-a or chef-b
+-   Subnet Section [Code 01](aws_backendless_chef_ha.yml#L357-L408)
+-   Switch Command [Code 02](https://github.com/HearstAT/cfn_backendless_chef/blob/cfn_yml/aws_backendless_chef_ha.yml#L368)
+-   Conditional [Code 03](aws_backendless_chef_ha.yml#L336-L337)
 
 Chef-a has it's own set of subnets.
 
