@@ -700,6 +700,7 @@ Resources:
               if [ -z $(command -v cfn-signal) ]; then
                   easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
               fi
+
               ##########################################################
               # Helper function to set wait timer
               ##########################################################
