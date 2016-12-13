@@ -137,6 +137,19 @@ Parameters:
     Description: Enter DB URL or VIP (External/Existing Only - Leave Empty to ignore)
 
   ## Elasticsearch Configuration
+  ESProxyInstanceType:
+    Type: String
+    Default: t2.small
+    AllowedValues:
+      - t2.micro
+      - t2.small
+      - t2.medium
+      - t2.large
+      - t2.xlarge
+      - t2.2xlarge
+      - m3.medium
+      - m3.large
+    ConstraintDescription: must be a valid EC2 instance type.
   ElasticInstanceType:
     Type: String
     Default: t2.small.elasticsearch
@@ -272,6 +285,7 @@ Metadata:
       Label:
         default: ElasticSearch Configuration
       Parameters:
+        - ESProxyInstanceType
         - ElasticInstanceType
     -
       Label:
@@ -317,6 +331,9 @@ Conditions:
   # Will create database if no exisitng URL is provided
   DBCon:
     !Equals [ !Ref DBURL, '' ]
+  # Set necessary items if Snapshot ID present
+  DBSnapCon:
+    !Equals [ !Ref DBSnapShot, '' ]
 
 Mappings:
   RegionMap:
@@ -413,7 +430,7 @@ Resources:
     Properties:
       Path: /
       Roles:
-      - !Ref ChefRole
+        - !Ref ChefRole
 
   ChefRole:
     Type: AWS::IAM::Role
@@ -437,22 +454,22 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-        # Allow all actions to one bucket (the supplied one, or the one you provided)
-        - Action: s3:*
-          Effect: Allow
-          Resource:
-            - !Join ['', [ 'arn:aws:s3:::', !If [ChefBucketCon, !Ref ChefBucket, !Ref ExistingBucketName] ]]
-            - !Join ['', [ 'arn:aws:s3:::', !If [ChefBucketCon, !Ref ChefBucket, !Ref ExistingBucketName], '/*' ]]
-        # Allow ability to list all buckets
-        - Action: s3:List*
-          Effect: Allow
-          Resource: arn:aws:s3:::*
-        # Allow instances to read their own tags (needed for setup script below)
-        - Action: ec2:DescribeTags
-          Effect: Allow
-          Resource: "*"
+          # Allow all actions to one bucket (the supplied one, or the one you provided)
+          - Action: s3:*
+            Effect: Allow
+            Resource:
+              - !Join ['', [ 'arn:aws:s3:::', !If [ChefBucketCon, !Ref ChefBucket, !Ref ExistingBucketName] ]]
+              - !Join ['', [ 'arn:aws:s3:::', !If [ChefBucketCon, !Ref ChefBucket, !Ref ExistingBucketName], '/*' ]]
+          # Allow ability to list all buckets
+          - Action: s3:List*
+            Effect: Allow
+            Resource: arn:aws:s3:::*
+          # Allow instances to read their own tags (needed for setup script below)
+          - Action: ec2:DescribeTags
+            Effect: Allow
+            Resource: "*"
       Roles:
-      - !Ref ChefRole
+        - !Ref ChefRole
 
   ChefDBSecurityGroup:
     Type: AWS::RDS::DBSecurityGroup
@@ -468,22 +485,22 @@ Resources:
       GroupDescription: Setup Ingress/Egress for Chef Frontend Load Balancer
       VpcId: !Ref VPC
       SecurityGroupIngress:
-      - IpProtocol: tcp
-        FromPort: '80'
-        ToPort: '80'
-        CidrIp: 0.0.0.0/0
-      - IpProtocol: tcp
-        FromPort: '443'
-        ToPort: '443'
-        CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
-      - IpProtocol: tcp
-        FromPort: '0'
-        ToPort: '65535'
-        CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '0'
+          ToPort: '65535'
+          CidrIp: 0.0.0.0/0
       Tags:
-      - Key: Name
-        Value: !Sub ${ChefSubdomain}-ELB-SecurityGroup
+        - Key: Name
+          Value: !Sub ${ChefSubdomain}-ELB-SecurityGroup
 
   FrontendSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -520,6 +537,29 @@ Resources:
         - Key: Name
           Value: !Sub ${ChefSubdomain}-Frontend-Security-Group
 
+  ProxySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Setup Ingress/Egress for Chef ES Proxy
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          SourceSecurityGroupId: !Ref FrontendSecurityGroup
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '80'
+          SourceSecurityGroupId: !Ref SSHSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: '0'
+          ToPort: '65535'
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${ChefSubdomain}-Proxy-Security-Group
+
 ###############################################################################
 # PostgreSQL DB
 ###############################################################################
@@ -529,7 +569,7 @@ Resources:
     Condition: DBCon
     DeletionPolicy: Delete
     Properties:
-      DBName: 'chefdb'
+      DBName: !If [ DBSnapCon, 'chefdb', '' ]
       AllocatedStorage: 50
       DBInstanceIdentifier: !Sub ${ChefSubdomain}-db
       MasterUsername: !Ref DBUser
@@ -554,8 +594,15 @@ Resources:
 # ElasticSearch
 ###############################################################################
 
+  ProxyEIP:
+    Type: "AWS::EC2::EIP"
+    Properties:
+      Domain: VPC
+
   ElasticsearchDomain:
     Type: AWS::Elasticsearch::Domain
+    DependsOn:
+      - ProxyEIP
     Properties:
       ElasticsearchVersion: 2.3
       ElasticsearchClusterConfig:
@@ -574,14 +621,193 @@ Resources:
         Version: "2012-10-17"
         Statement:
           - Effect: "Allow"
-            Principal:
-              AWS: !GetAtt ChefRole.Arn
+            Principal: "*"
             Action: "es:*"
+            Condition:
+              IpAddress:
+                "aws:sourceIp": !Ref ProxyEIP
       AdvancedOptions:
         rest.action.multi.allow_explicit_index: "true"
       Tags:
-      - Key: Name
-        Value: !Sub ${AWS::StackName}-ES
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-ES
+
+###############################################################################
+# Elastic Search Proxy
+###############################################################################
+
+  ProxyDNS:
+    Type: "AWS::Route53::RecordSet"
+    Properties:
+      HostedZoneName: !Sub "${HostedZone}."
+      Comment: !Sub Zone apex alias targeted to ${ChefSubdomain} Proxy Instance.
+      Name: !Join [ '', [ !Ref ChefSubdomain, "-proxy", ".", !Ref HostedZone, "." ] ]
+      Type: "A"
+      TTL: "60"
+      ResourceRecords:
+        - !Ref ProxyEIP
+
+  ProxyInstance:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - ElasticsearchDomain
+    Properties:
+      ImageId: !FindInMap [ RegionMap, !Ref "AWS::Region", HVM64 ]
+      InstanceType: !Ref ESProxyInstanceType
+      KeyName: !Ref KeyName
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          GroupSet:
+            - !Ref ProxySecurityGroup
+            - !Ref SSHSecurityGroup
+          SubnetId:
+            Ref: SubnetA
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 20
+            VolumeType: gp2
+            DeleteOnTermination: true
+      UserData:
+        "Fn::Base64":
+          "Fn::Sub":
+            - |
+              #!/bin/bash -xev
+
+              export DEBIAN_FRONTEND=noninteractive
+
+              ##########################################################
+              # Upgrade OS & Install Dependencies
+              ##########################################################
+
+              apt-get update && apt-get -y upgrade
+              apt-get install -y wget curl python-setuptools python-pip git
+
+              ##########################################################
+              # Install cfn bootstraping tools
+              ##########################################################
+
+              if [ -z $(command -v cfn-signal) ]; then
+                  easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
+              fi
+
+              ##########################################################
+              # Install AWS Cli Tools
+              ##########################################################
+
+              if [ -z $(command -v aws) ]; then
+                # Something between the easy install and pip install are causing issues.
+                # Adding sleep to slow it down a bit to let whatever it is clear out.
+                sleep 5
+                pip install awscli
+              fi
+
+              ##########################################################
+              # Global Variable Set
+              ##########################################################
+
+              export INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+              export STACKNAME='${AWS::StackName}'
+              export HOSTNAME='${ProxyDNS}'
+
+              ##########################################################
+              # Helper function to set wait timer
+              ##########################################################
+
+              error_exit()
+              {
+                cfn-signal -e 1 -r "$1" "${ProxyWaitHandle}"
+                exit 1
+              }
+
+              export -f error_exit
+
+              ##########################################################
+              # Set Hostname and Hosts File
+              ##########################################################
+
+              hostname ${!HOSTNAME} || error_exit 'Failed to set hostname'
+              echo "${!HOSTNAME}" > /etc/hostname || error_exit 'Failed to set hostname file'
+
+              cat > '/etc/hosts' << EOF
+              127.0.0.1 ${!HOSTNAME} ${!HOSTNAME%%.*} localhost
+              ::1 localhost6.localdomain6 localhost6
+              EOF
+
+              ##########################################################
+              # Install NGINX and Configure
+              ##########################################################
+              apt-get install -y nginx
+
+              mkdir -p /etc/nginx/sites-available/ /etc/nginx/sites-enabled/
+
+              cat > '/etc/nginx/sites-available/esproxy.conf' << EOF
+              server {
+                listen       80;
+                server_name  ${ProxyDNS};
+
+                error_log   elasticsearch-errors.log;
+                access_log  elasticsearch.log;
+
+                location / {
+
+                  # Pass requests to ElasticSearch
+                  proxy_pass ${ELASTICURL};
+                  proxy_redirect off;
+
+                  proxy_set_header  X-Real-IP  $remote_addr;
+                  proxy_set_header  X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header  Host $http_host;
+                }
+              }
+
+              # Listen for local requests to the stub_status module.
+              server {
+                listen 127.0.0.1:9999;
+                location /nginx_status {
+                  stub_status on;
+                  access_log off;
+                  allow 127.0.0.1;
+                  deny all;
+                }
+              }
+              EOF
+
+              ln -s /etc/nginx/sites-available/esproxy.conf /etc/nginx/sites-enabled/esproxy.conf
+
+              systemctl enable nginx
+              systemctl restart nginx
+
+              ##########################################################
+              # NewRelic Config if Enabled
+              ##########################################################
+              ## No need to for error_exit here, it's exported and utilized inside the script
+              if [ -n "${NewRelicAppName}" ]; then
+                wget -qO /root/newrelic.sh 'https://github.com/HearstAT/cfn_backendless_chef/raw/${GitBranch}/newrelic.sh' && bash /root/newrelic.sh ${NewRelicLicense} ${NewRelicAppName}
+              fi
+
+              ##########################################################
+              # Sumologic Config if Enabled
+              ##########################################################
+
+              if [ -n "${SumologicAccessID}" ]; then
+                wget -qO /root/sumologic.sh 'https://github.com/HearstAT/cfn_backendless_chef/raw/${GitBranch}/sumologic.sh' && bash /root/sumologic.sh proxy ${SumologicAccessID} ${SumologicAccessKey}
+              fi
+
+              ##########################################################
+              # Send Success Signal to CFN Wait Handle
+              ##########################################################
+
+              /usr/local/bin/cfn-signal -e 0 -r 'Server setup complete' "${ProxyWaitHandle}"
+
+            - { ELASTICURL: !GetAtt ElasticsearchDomain.DomainEndpoint }
+
+  ProxyEIPAssign:
+    Type: "AWS::EC2::EIPAssociation"
+    Properties:
+      EIP: !Ref ProxyEIP
+      InstanceId: !Ref ProxyInstance
 
 ###############################################################################
 # Autoscaling
@@ -627,13 +853,13 @@ Resources:
         - !Ref SubnetC
       LaunchConfigurationName: !Ref ServerLaunchConfig
       LoadBalancerNames:
-      - !Ref PrimaryElasticLoadBalancer
+        - !Ref PrimaryElasticLoadBalancer
       MaxSize: '3'
       MinSize: '1'
       Tags:
-      - Key: Name
-        Value: !Sub ${AWS::StackName}-frontend
-        PropagateAtLaunch: true
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-frontend
+          PropagateAtLaunch: true
 
   FrontendAutoScaleUpPolicy:
     Type: AWS::AutoScaling::ScalingPolicy
@@ -718,11 +944,11 @@ Resources:
         - !Ref SSHSecurityGroup
       KeyName: !Ref KeyName
       BlockDeviceMappings:
-      - DeviceName: /dev/sda1
-        Ebs:
-          VolumeSize: 20
-          VolumeType: gp2
-          DeleteOnTermination: true
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 20
+            VolumeType: gp2
+            DeleteOnTermination: true
       IamInstanceProfile: !Ref ChefInstanceProfile
       UserData:
         "Fn::Base64":
@@ -730,24 +956,24 @@ Resources:
             - |
               #!/bin/bash -xev
 
-              ##################################################
+              ##########################################################
               # Upgrade OS & Install Dependencies
-              ##################################################
+              ##########################################################
 
               apt-get update && apt-get -y upgrade
               apt-get install -y wget curl python-setuptools python-pip git
 
-              ##################################################
+              ##########################################################
               # Install cfn bootstraping tools
-              ##################################################
+              ##########################################################
 
               if [ -z $(command -v cfn-signal) ]; then
                   easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
               fi
 
-              ##################################################
+              ##########################################################
               # Install AWS Cli Tools
-              ##################################################
+              ##########################################################
 
               if [ -z $(command -v aws) ]; then
                 # Something between the easy install and pip install are causing issues.
@@ -756,15 +982,15 @@ Resources:
                 pip install awscli
               fi
 
-              ##################################################
+              ##########################################################
               # Global Variable Set
-              ##################################################
+              ##########################################################
 
               export DEBIAN_FRONTEND=noninteractive
               export INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
               export BOOTSTRAP_TAGS=$(aws ec2 describe-tags --region ${AWS::Region} --filter "Name=resource-id,Values=$INSTANCE_ID" --output=text | grep BootstrapAutoScaleGroup)
-              export STACKNAME=${AWS::StackName}
-              export HOSTNAME=${ChefSubdomain}-fe-${!INSTANCE_ID}.${HostedZone}
+              export STACKNAME='${AWS::StackName}'
+              export HOSTNAME='${ChefSubdomain}-fe-${!INSTANCE_ID}.${HostedZone}'
 
               if [ -n "${!BOOTSTRAP_TAGS}" ]; then
                 export WAITHANDLE='${BootstrapWaitHandle}'
@@ -772,9 +998,9 @@ Resources:
                 export WAITHANDLE='${FrontendWaitHandle}'
               fi
 
-              ##################################################
+              ##########################################################
               # Helper function to set wait timer
-              ##################################################
+              ##########################################################
 
               error_exit()
               {
@@ -784,41 +1010,9 @@ Resources:
 
               export -f error_exit
 
-              ##################################################
-              # Install ES Proxy Auth
-              # https://github.com/lucaagostini/aws-es-auth-proxy
-              ##################################################
-
-              if [ -z $(command -v aws-es-auth-proxy) ]; then
-                pip install aws-es-auth-proxy || error_exit "Failed to install ES Auth Proxy"
-              fi
-
-              cat > '/lib/systemd/system/aws-es-auth-proxy.service' << 'EOF'
-              [Unit]
-              Description=aws-es-auth-proxy
-
-              [Service]
-              PrivateTmp=yes
-              User=root
-              Group=root
-              PermissionsStartOnly=true
-              PIDFile=/var/run/aws-es-auth-proxy/aws-es-auth-proxy.pid
-              ExecStartPre=/bin/mkdir -p /var/run/aws-es-auth-proxy /var/log/aws-es-auth-proxy
-              ExecStartPre=/bin/rm -f /var/run/aws-es-auth-proxy/aws-es-auth-proxy.pid
-              ExecStart=/usr/local/bin/aws-es-auth-proxy --aws_service_endpoint ${ELASTICURL}
-              ExecStop=/bin/kill -INT $MAINPID
-              Restart=on-abort
-
-              [Install]
-              WantedBy=multi-user.target
-              EOF
-
-              systemctl enable aws-es-auth-proxy || error_exit "Failed to enable ES Auth Proxy"
-              systemctl start aws-es-auth-proxy || error_exit "Failed to start ES Auth Proxy"
-
-              ##################################################
+              ##########################################################
               # Set Hostname and Hosts File
-              ##################################################
+              ##########################################################
 
               hostname ${!HOSTNAME} || error_exit 'Failed to set hostname'
               echo "${!HOSTNAME}" > /etc/hostname || error_exit 'Failed to set hostname file'
@@ -828,9 +1022,9 @@ Resources:
               ::1 localhost6.localdomain6 localhost6
               EOF
 
-              ##################################################
+              ##########################################################
               # Setup Postfix as Chef Mail Relay
-              ##################################################
+              ##########################################################
 
               debconf-set-selections <<< "postfix postfix/main_mailer_type select Satellite system" || error_exit "Failed to set Postfix Option: Mailer Type"
               debconf-set-selections <<< "postfix postfix/mailname string chef.${HostedZone}" || error_exit "Failed to set Postfix Option: Mail Name"
@@ -855,9 +1049,9 @@ Resources:
 
               systemctl restart postfix || error_exit "Failed to restart Postfix"
 
-              ##################################################
+              ##########################################################
               # Install Chef Server with Manage and Reporting
-              ##################################################
+              ##########################################################
 
               CHEFSERVER=$(mktemp); wget "https://packages.chef.io/stable/ubuntu/16.04/chef-server-core_${ChefServerVersion}-1_amd64.deb" -qO $CHEFSERVER && dpkg -i $CHEFSERVER; rm $CHEFSERVER || error_exit "Failed to install Chef Server"
 
@@ -867,6 +1061,24 @@ Resources:
 
               mkdir -p /etc/chef-manage/ /etc/opscode/ /etc/opscode-reporting/
 
+              ##########################################################
+              # If not Bootstrap or Existing DB, Pull Bootstrap Secrets
+              ##########################################################
+
+              if [ -z "${!BOOTSTRAP_TAGS}" ] || [ -n "${DBSnapShot}" ]; then
+                echo "[INFO] configuring this node as a regular Chef frontend"
+                aws s3 sync s3://${BUCKET}/etc_opscode /etc/opscode || error_exit "Failed to sync existing Opscode Directory"
+                aws s3 sync s3://${BUCKET}/etc_reporting /etc/opscode-reporting || error_exit "Failed to synx existing Reporting Directory"
+                mkdir -p /var/opt/opscode/upgrades || error_exit "Failed to create upgrades directory"
+                touch /var/opt/opscode/bootstrapped || error_exit "Failed to create bootstrap file"
+                aws s3 cp s3://${BUCKET}/migration-level /var/opt/opscode/upgrades/ || error_exit "Failed sync migration-level"
+              fi
+
+              ##########################################################
+              # Only write config changes on Bootstrap
+              ##########################################################
+
+              if [ -n "${!BOOTSTRAP_TAGS}" ]; then
               cat > '/etc/chef-manage/manage.rb' << EOF
               disable_sign_up ${DisableSignup}
               support_email_address '${SupportEmail}'
@@ -902,7 +1114,7 @@ Resources:
               opscode_erchef['search_provider'] = 'elasticsearch'
               opscode_erchef['search_queue_mode'] = 'batch'
               opscode_solr4['external'] = true
-              opscode_solr4['external_url'] = 'http://127.0.0.1:8080'
+              opscode_solr4['external_url'] = 'http://${ProxyDNS}'
               bookshelf['storage_type'] = :sql
               rabbitmq['enable'] = false
               rabbitmq['management_enabled'] = false
@@ -917,37 +1129,25 @@ Resources:
               postgresql['db_superuser_password'] = '${DBPassword}'
               postgresql['vip'] = '${DBENDPOINT}'
               EOF
-
-              ##################################################
-              # If not Bootstrap, Pull Bootstrap Secrets
-              ##################################################
-
-              if [ -z "${!BOOTSTRAP_TAGS}" ]; then
-                echo "[INFO] configuring this node as a regular Chef frontend"
-                aws s3 sync s3://${BUCKET}/etc_opscode /etc/opscode || error_exit "Failed to sync existing Opscode Directory"
-                aws s3 sync s3://${BUCKET}/etc_reporting /etc/opscode-reporting || error_exit "Failed to synx existing Reporting Directory"
-                mkdir -p /var/opt/opscode/upgrades || error_exit "Failed to create upgrades directory"
-                touch /var/opt/opscode/bootstrapped || error_exit "Failed to create bootstrap file"
-                aws s3 cp s3://${BUCKET}/migration-level /var/opt/opscode/upgrades/ || error_exit "Failed sync migration-level"
               fi
 
-              ##################################################
+              ##########################################################
               # Configure the Chef Server
-              ##################################################
+              ##########################################################
 
               chef-server-ctl reconfigure --accept-license || error_exit "Chef Server Reconfigure Failed"
               chef-manage-ctl reconfigure --accept-license || error_exit "Chef Manage Reconfigure Failed"
 
-              ##################################################
+              ##########################################################
               # Non-SSl Multi Servername Alias Workaround
-              ##################################################
+              ##########################################################
 
               cp -f /var/opt/opscode/nginx/ca/${ChefSubdomain}.${HostedZone}\ chef.${HostedZone}.key /var/opt/opscode/nginx/ca/${ChefSubdomain}.${HostedZone}.key || error_exit "Failed to copy key for Chef NGINX Workaround"
               cp -f /var/opt/opscode/nginx/ca/${ChefSubdomain}.${HostedZone}\ chef.${HostedZone}.crt /var/opt/opscode/nginx/ca/${ChefSubdomain}.${HostedZone}.crt || error_exit "Failed to copy cert for Chef NGINX Workaround"
 
-              ##################################################
+              ##########################################################
               # If Bootstrap/Master Node, Sync Secrets
-              ##################################################
+              ##########################################################
 
               if [ -n "${!BOOTSTRAP_TAGS}" ]; then
                 echo "[INFO] syncing secrets up to S3"
@@ -956,97 +1156,61 @@ Resources:
                 aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${BUCKET}/ || error_exit "Failed to sync bootstrap migration-level"
               fi
 
-              ##################################################
+              ##########################################################
               # NewRelic Config if Enabled
-              ##################################################
+              ##########################################################
               ## No need to for error_exit here, it's exported and utilized inside the script
               if [ -n "${NewRelicAppName}" ]; then
                 wget -qO /root/newrelic.sh 'https://github.com/HearstAT/cfn_backendless_chef/raw/${GitBranch}/newrelic.sh' && bash /root/newrelic.sh ${NewRelicLicense} ${NewRelicAppName}
               fi
 
-              ##################################################
+              ##########################################################
               # Existing Install Options
-              ##################################################
+              ##########################################################
 
               if [ -n "${!BOOTSTRAP_TAGS}" ] && [ -n "${BackupFilename}" ]; then
                 echo "Backup Restore Selected, restoring previos knife ec backup"
                 aws s3 sync s3://${BUCKET}/chef_ec_backups /tmp/backup_sync || error_exit "Failed to sync backup files from S3"
                 tar -xzf /tmp/backup_sync/${BackupFilename} --strip-components=1 || error_exit "Failed to extract backup"
                 /opt/opscode/embedded/bin/knife ec restore /tmp/backup -s https://${ChefSubdomain}.${HostedZone} --with-user-sql --skip-useracl --sql-host ${DBENDPOINT} || error_exit "Failed to restore Backup"
-                chef-server-ctl-reindex --all-orgs || error_exit "Failed to re-index orgs from Backup"
+                chef-server-ctl reindex --all-orgs || error_exit "Failed to re-index orgs from Backup"
               fi
-
 
               if [ -n "${!BOOTSTRAP_TAGS}" ] && [ -n "${DBSnapShot}" ]; then
                 echo "Existing DB, re-indexing orgs"
-                chef-server-ctl-reindex --all-orgs || error_exit "Failed to re-index orgs from DB Snapshot Setup"
+                chef-server-ctl reindex --all-orgs || error_exit "Failed to re-index orgs from DB Snapshot Setup"
               fi
 
-              ##################################################
+              ##########################################################
               # Restart Chef Server
-              ##################################################
+              ##########################################################
 
               chef-server-ctl restart || error_exit "Chef Server Restart Failed"
 
-              ##################################################
-              # Create Chef Server Backup if Enabled
-              ##################################################
-
-              if [ "${BackupEnable}" == 'true' ] && [ -n "${!BOOTSTRAP_TAGS}" ]; then
-              echo "Backup Enabled; Setting up Knife EC Backups"
-              cat > '/root/chef_backup.sh' << 'EOF'
-              #!/bin/bash -xevu
-
-              exec &> /var/log/chef_backup.log
-
-              export BACKUP_NAME=backup_$(date +"%d_%b_%y")
-
-              if [ ! -d "/tmp/backup_sync" ]; then
-                  mkdir -p /tmp/backup_sync
-              fi
-
-              if [ ! -d "/tmp/backup" ]; then
-                  mkdir -p /tmp/backup
-              fi
-
-              if [ ! -f /tmp/backup_sync/${!BACKUP_NAME}.tar ]; then
-                  rm -rf /tmp/backup/*
-
-                  /opt/opscode/embedded/bin/knife ec backup /tmp/backup/ -s https://${ChefSubdomain}.${HostedZone} --with-user-sql --sql-host ${DBENDPOINT}
-
-                  tar -czf /tmp/backup_sync/${!BACKUP_NAME}.tar /tmp/backup/
-
-                  aws s3 sync /tmp/backup_sync s3://${BUCKET}/chef_ec_backups --delete
-
-                  find /tmp/backup_sync/* -mtime +10 -type f -delete
-              fi
-              EOF
-
-                chmod +x /root/chef_backup.sh
-
-                touch /var/spool/cron/crontabs/root
-                # Set to 0500 UTC (9pmPST|11pmCST)
-                crontab -l > chefbackup_cron
-                echo "00 5 * * * /root/chef_backup.sh" >> chefbackup_cron
-                crontab chefbackup_cron
-                rm chefbackup_cron
-              fi
-
-              ##################################################
+              ##########################################################
               # Sumologic Config if Enabled
-              ##################################################
+              ##########################################################
 
               if [ -n "${SumologicAccessID}" ]; then
-                wget -qO /root/sumologic.sh 'https://github.com/HearstAT/cfn_backendless_chef/raw/${GitBranch}/sumologic.sh' && bash /root/sumologic.sh ${SumologicAccessID} ${SumologicAccessKey}
+                wget -qO /root/sumologic.sh 'https://github.com/HearstAT/cfn_backendless_chef/raw/${GitBranch}/sumologic.sh' && bash /root/sumologic.sh chef ${SumologicAccessID} ${SumologicAccessKey}
               fi
 
-              ##################################################
+              ##########################################################
               # Send Success Signal to CFN Wait Handle
-              ##################################################
+              ##########################################################
 
               /usr/local/bin/cfn-signal -e 0 -r 'Server setup complete' "${!WAITHANDLE}"
 
-            - { DBENDPOINT: !If [ DBCon, !GetAtt ChefDB.Endpoint.Address, !Ref DBURL ], ELASTICURL: !GetAtt ElasticsearchDomain.DomainEndpoint, BUCKET: !If [ ChefBucketCon, !Ref ChefBucket, !Ref ExistingBucketName ] }
+            - { DBENDPOINT: !If [ DBCon, !GetAtt ChefDB.Endpoint.Address, !Ref DBURL ], BUCKET: !If [ ChefBucketCon, !Ref ChefBucket, !Ref ExistingBucketName ] }
+
+  ProxyWaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+  ProxyWaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    DependsOn: ProxyInstance
+    Properties:
+      Handle: !Ref ProxyWaitHandle
+      Timeout: 900
 
   BootstrapWaitHandle:
     Type: AWS::CloudFormation::WaitConditionHandle
