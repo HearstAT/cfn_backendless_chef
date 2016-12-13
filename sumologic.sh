@@ -3,16 +3,18 @@
 ################################
 # USAGE:
 #
-# ./sumologic.sh license_key access_id access_key password
+# ./sumologic.sh system access_id access_key
 #
+# ./sumologic.sh proxy af893rjnfiuadf fc90u3eiorjqjfnasu8v89
 ################################
 
 ##################################################
 # Script Argument Set
 ##################################################
 
-ACCESS_ID=${1}
-ACCESS_KEY=${2}
+SYSTEM=${1}
+ACCESS_ID=${2}
+ACCESS_KEY=${3}
 
 
 ##################################################
@@ -40,7 +42,7 @@ EOF
 ##################################################
 # Set Collector Sources
 ##################################################
-
+if [ ${SYSTEM} == 'chef' ]; then
 cat > '/opt/SumoCollector/sources.json' << EOF
 {
   "api.version": "v1",
@@ -213,6 +215,72 @@ cat > '/opt/SumoCollector/sources.json' << EOF
   ]
 }
 EOF
+fi
+
+if [ ${SYSTEM} == 'proxy' ]; then
+cat > '/opt/SumoCollector/sources.json' << EOF
+{
+  "api.version": "v1",
+  "sources": [
+    {
+      "name": "Messages",
+      "sourceType": "LocalFile",
+      "automaticDateParsing": true,
+      "multilineProcessingEnabled": false,
+      "useAutolineMatching": true,
+      "forceTimeZone": false,
+      "timeZone": "UTC",
+      "category": "OS/Linux/System",
+      "pathExpression": "/var/log/messages"
+    },
+    {
+      "name": "Secure",
+      "sourceType": "LocalFile",
+      "automaticDateParsing": true,
+      "multilineProcessingEnabled": false,
+      "useAutolineMatching": true,
+      "forceTimeZone": false,
+      "timeZone": "UTC",
+      "category": "OS/Linux/Security",
+      "pathExpression": "/var/log/secure"
+    },
+    {
+      "name": "Syslog File",
+      "sourceType": "LocalFile",
+      "automaticDateParsing": true,
+      "multilineProcessingEnabled": false,
+      "useAutolineMatching": true,
+      "forceTimeZone": false,
+      "timeZone": "UTC",
+      "category": "OS/Linux/System",
+      "pathExpression": "/var/log/syslog"
+    },
+    {
+      "name": "NGINX_Chef_ES",
+      "sourceType": "LocalFile",
+      "automaticDateParsing": true,
+      "multilineProcessingEnabled": false,
+      "useAutolineMatching": true,
+      "forceTimeZone": false,
+      "timeZone": "UTC",
+      "category": "ES_Proxy/NGINX_Logs",
+      "pathExpression": "/var/log/nginx/*.log"
+    },
+    {
+      "name": "newrelic_logs",
+      "sourceType": "LocalFile",
+      "automaticDateParsing": true,
+      "multilineProcessingEnabled": false,
+      "useAutolineMatching": true,
+      "forceTimeZone": false,
+      "timeZone": "UTC",
+      "category": "chef/new_relic",
+      "pathExpression": "/var/log/newrelic/*.log"
+    }
+  ]
+}
+EOF
+fi
 
 ##################################################
 # Reload and Start Collector

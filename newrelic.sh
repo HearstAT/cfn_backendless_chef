@@ -3,8 +3,9 @@
 ################################
 # USAGE:
 #
-# ./newrelic.sh license_key app_name db_endpoint db_user db_name
+# ./newrelic.sh license_key app_name
 #
+# ./newrelic.sh j3u90djfsjfa8u chef_stack
 ################################
 
 ##################################################
@@ -95,7 +96,7 @@ EOF
 ##################################################
 # Configure New Relic APM Options
 ##################################################
-
+if [ -d '/var/opt/chef-manage' ]; then
 cat > '/root/newrelic.yml' << EOF
 production:
   license_key: ${LICENSE_KEY}
@@ -106,7 +107,7 @@ EOF
 
 cp -f /root/newrelic.yml /var/opt/chef-manage/etc/
 cp -f /root/newrelic.yml /opt/opscode/embedded/service/oc_id/config/
-
+fi
 ##################################################
 # Enable and Start all New Relic Agents
 ##################################################
