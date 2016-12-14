@@ -1211,13 +1211,27 @@ Resources:
               chef-manage-ctl reconfigure --accept-license || error_exit "Chef Manage Reconfigure Failed"
 
               ##########################################################
-              # If Bootstrap/Master Node, Sync Secrets
+              # If Bootstrap/Master Node, Sync Secrets and Knife.rb
               ##########################################################
 
               if [ -n "${!BOOTSTRAP_TAGS}" ]; then
                 echo "[INFO] syncing secrets up to S3"
                 aws s3 sync /etc/opscode s3://${BUCKET}/etc_opscode || error_exit "Failed to sync bootstrap opscode directory"
                 aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${BUCKET}/ || error_exit "Failed to sync bootstrap migration-level"
+                echo "[INFO] Write knife.rb file and syncing for knife ec restore/backup"
+              cat > '/tmp/knife.rb' << EOF
+              current_dir = File.dirname(__FILE__)
+              log_level                :info
+              log_location             STDOUT
+              knife[:webui_key] = "#{current_dir}/etc_opscode/webui_key.pem"
+              knife[:with_user_sql] = true
+              knife[:sql_user] = '${DBUser}'
+              knife[:sql_password] = '${DBPassword}'
+              knife[:sql_host] = '${DBENDPOINT}'
+              knife[:chef_server_url] = 'https://${ChefSubdomain}.${HostedZone}'
+              EOF
+                aws s3 cp /tmp/knife.rb s3://${BUCKET}/knife.rb
+                rm /tmp/knife.rb
               fi
 
               ##########################################################
