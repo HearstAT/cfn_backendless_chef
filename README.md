@@ -154,7 +154,7 @@ This can be down outside the entire Cloudformation process, but if wanting to do
 
 For External:
 
-If you want to sync down the S3 bucket utilized for the instance, there is a knife.rb in the root of the S3 bucket created at build time with all the config data to run the backup or restore commands.
+If you want to sync down the S3 bucket utilized for the instance, there is a knife.rb in the root of the S3 bucket created at build time with all the config data to run the backup or restore commands. [Code 01](aws_backendless_chef_ha.yml#L1222-L1235)
 
 -   [knife ec](https://github.com/chef/knife-ec-backup) w/ the following items/info
     -   Backup (See backup command below)
