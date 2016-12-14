@@ -22,6 +22,15 @@ Parameters:
     Description: SSL Certficate ARN for SSL Certficate
 
   ## Re-Deploy Configuration
+  # Placeholder until issues worked out
+  # RunUpgrade:
+  #   Type: String
+  #   Default: 'false'
+  #   AllowedValues:
+  #     - 'true'
+  #     - 'false'
+  #   Description: Select True/False if you wish to run chef upgrade procedures (Good for upgraing versions in place or using DB snapshot)
+
   BackupFilename:
     Type: String
     Default: ''
@@ -88,14 +97,6 @@ Parameters:
     Default: '25'
     Description: Enter how many licenses you have purchased
 
-  BackupEnable:
-    Type: String
-    Default: 'true'
-    AllowedValues:
-      - 'true'
-      - 'false'
-    Description: Select True/False if you wanted to enable backups
-
   SupportEmail:
     Type: String
     Default: ''
@@ -121,6 +122,14 @@ Parameters:
       - db.m4.xlarge
       - db.m4.2xlarge
     ConstraintDescription: must be a valid Elasticsearch instance type.
+
+  DBPublic:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Select True or False if you want your Database public facing (i.e.; if doing knife-ec-backup externally)
 
   DBMultiAZ:
     Type: String
@@ -256,8 +265,9 @@ Metadata:
         - SSLCertificateARN
     -
       Label:
-        default: Re-Deploy Options (Optional - Leave Blank to Disable)
+        default: Re-Deploy/Upgrade Options (Optional - Leave Blank to Disable)
       Parameters:
+        - RunUpgrade
         - BackupFilename
         - ExistingBucketName
         - DBSnapShot
@@ -269,7 +279,6 @@ Metadata:
         - DisableSignup
         - SupportEmail
         - LicenseCount
-        - BackupEnable
         - ChefServerVersion
         - ManageVersion
         - ReportingVersion
@@ -280,6 +289,7 @@ Metadata:
         - DBUser
         - DBPassword
         - DBInstanceType
+        - DBPublic
         - DBMultiAZ
         - DBURL
     -
@@ -474,7 +484,7 @@ Resources:
       Roles:
         - !Ref ChefRole
 
-  ChefDBSecurityGroup:
+  DBSecurityGroup:
     Type: AWS::RDS::DBSecurityGroup
     Properties:
       EC2VpcId: !Ref VPC
@@ -587,8 +597,8 @@ Resources:
       BackupRetentionPeriod: 14
       DBSubnetGroupName: !Ref DBSubnetGroup
       DBSecurityGroups:
-        - !Ref ChefDBSecurityGroup
-      PubliclyAccessible: false
+        - !Ref DBSecurityGroup
+      PubliclyAccessible: !Ref DBPublic
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-pgdb
@@ -1050,15 +1060,16 @@ Resources:
 
               if [ -z "${!BOOTSTRAP_TAGS}" ] || [ -n "${DBSnapShot}" ]; then
                 echo "[INFO] configuring this node as a regular Chef frontend"
-                aws s3 sync s3://${BUCKET}/etc_opscode/pivotal.pem /etc/opscode || error_exit "Failed to sync existing Pivotal Key"
-                aws s3 sync s3://${BUCKET}/etc_opscode/private-chef-secrets.json /etc/opscode || error_exit "Failed to sync existing Chef Secrets"
-                aws s3 sync s3://${BUCKET}/etc_opscode/webui_priv.pem /etc/opscode || error_exit "Failed to sync existing WebUI Key"
-                aws s3 sync s3://${BUCKET}/etc_opscode/webui_pub.pem/etc/opscode || error_exit "Failed to sync existing WebUI Cert"
+                aws s3 cp s3://${BUCKET}/etc_opscode/pivotal.pem /etc/opscode || error_exit "Failed to sync existing Pivotal Key"
+                aws s3 cp s3://${BUCKET}/etc_opscode/private-chef-secrets.json /etc/opscode || error_exit "Failed to sync existing Chef Secrets"
+                aws s3 cp s3://${BUCKET}/etc_opscode/webui_priv.pem /etc/opscode || error_exit "Failed to sync existing WebUI Key"
+                aws s3 cp s3://${BUCKET}/etc_opscode/webui_pub.pem /etc/opscode || error_exit "Failed to sync existing WebUI Cert"
                 mkdir -p /var/opt/opscode/upgrades || error_exit "Failed to create upgrades directory"
                 touch /var/opt/opscode/bootstrapped || error_exit "Failed to create bootstrap file"
                 aws s3 cp s3://${BUCKET}/migration-level /var/opt/opscode/upgrades/ || error_exit "Failed sync migration-level"
               fi
-              if [ -n "${!BOOTSTRAP_TAGS}" ]
+
+              if [ -n "${!BOOTSTRAP_TAGS}" ]; then
               cat > '/tmp/index_create.json' << EOF
                 {
                   "settings": {
@@ -1146,6 +1157,7 @@ Resources:
               postgresql['external'] = true
               postgresql['vip'] = '${DBENDPOINT}'
               postgresql['db_superuser'] = '${DBUser}'
+              postgresql['username'] = '${DBUser}'
               postgresql['db_superuser_password'] = '${DBPassword}'
               oc_chef_authz['http_init_count'] = 100
               oc_chef_authz['http_queue_max'] = 200
@@ -1234,10 +1246,23 @@ Resources:
               fi
 
               ##########################################################
+              # Upgrade Chef Chef if Selected
+              ##########################################################
+              ## Placeholder for now as there are some work arounds required
+              # if [ -n "${!BOOTSTRAP_TAGS}" ] && [ "${!RunUpgrade}" == 'true' ]; then
+              #   chef-server-ctl stop || error_exit "Chef Server Restart Failed"
+              #   chef-server-ctl upgrade || error_exit "Chef Server Restart Failed"
+              #   chef-server-ctl start || error_exit "Chef Server Restart Failed"
+              #   chef-server-ctl cleanup || error_exit "Chef Server Restart Failed"
+              # fi
+
+              ##########################################################
               # Restart Chef Server
               ##########################################################
 
-              chef-server-ctl restart || error_exit "Chef Server Restart Failed"
+              # if [ "${!RunUpgrade}" == 'false' ]; then
+                chef-server-ctl restart || error_exit "Chef Server Restart Failed"
+              # fi
 
               ##########################################################
               # Sumologic Config if Enabled
