@@ -161,12 +161,12 @@ Parameters:
       - m3.2xlarge.elasticsearch
     ConstraintDescription: must be a valid Elasticsearch instance type.
 
-  ElasticSearchInstanceCount:
+  ElasticInstanceCount:
     Type: String
     Default: '2'
     Description: Enter the number of ElasticSearch Instances/Nodes you wanted
 
-  ElasticSearchReplicaCount:
+  ElasticReplicaCount:
     Type: String
     Default: '1'
     Description: Enter the number of ElasticSearch Replicas you want (Must be at least one less than Instance count)
@@ -288,8 +288,8 @@ Metadata:
       Parameters:
         - ESProxyInstanceType
         - ElasticInstanceType
-        - ElasticSearchInstanceCount
-        - ElasticSearchReplicaCount
+        - ElasticInstanceCount
+        - ElasticReplicaCount
     -
       Label:
         default: Mail Configuration (Optional  - Leave Blank to Disable)
@@ -1066,8 +1066,8 @@ Resources:
                         }
                       }
                     },
-                    "number_of_shards": ${ElasticSearchInstanceCount},
-                    "number_of_replicas": ${ElasticSearchReplicaCount}
+                    "number_of_shards": ${ElasticInstanceCount},
+                    "number_of_replicas": ${ElasticReplicaCount}
                   },
                   "mappings": {
                     "object": {
