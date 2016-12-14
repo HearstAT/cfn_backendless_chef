@@ -154,15 +154,22 @@ This can be down outside the entire Cloudformation process, but if wanting to do
 
 For External:
 
+If you want to sync down the S3 bucket utilized for the instance, there is a knife.rb in the root of the S3 bucket created at build time with all the config data to run the backup or restore commands.
+
 -   [knife ec](https://github.com/chef/knife-ec-backup) w/ the following items/info
     -   Backup (See backup command below)
-    -   PostgreSQL Endpoint
-    -   DB User
-    -   DB Password
-    -   webui_priv.pem (found in /etc/opscode on existing server or S3 sync bucket)
+    -   Folling Info: (This comes included in the knife.rb synced to the S3 Bucket)
+        -   PostgreSQL Endpoint
+        -   DB User
+        -   DB Password
+        -   webui_priv.pem (found in /etc/opscode on existing server or S3 sync bucket under etc_opscode)
 -   Command to run
-    -   Backup: `knife ec backup /tmp/backup/ -s https://chef.hearst.at --webui-key /tmp/webui_priv.pem --with-user-sql --sql-host some-db.rds.amazonaws.com --sql-user dbuser --sql-password sup3rs3cr3ts`
-    -   Restore: `knife ec restore /tmp/backup/ -s https://chef.hearst.at --webui-key /tmp/webui_priv.pem --with-user-sql --sql-host some-db.rds.amazonaws.com --sql-user dbuser --sql-password sup3rs3cr3ts`
+    -   Without knife.rb in S3 Bucket
+        -   Backup: `knife ec backup /tmp/backup/ -s https://chef.hearst.at --webui-key /tmp/webui_priv.pem --with-user-sql --sql-host some-db.rds.amazonaws.com --sql-user dbuser --sql-password sup3rs3cr3ts`
+        -   Restore: `knife ec restore /tmp/backup/ -s https://chef.hearst.at --webui-key /tmp/webui_priv.pem --with-user-sql --sql-host some-db.rds.amazonaws.com --sql-user dbuser --sql-password sup3rs3cr3ts`
+    -   With knife.rb from S3 Bucket
+        -   Backup: `knife ec backup /tmp/backup/ -c /path/to/s3/knife.rb`
+        -   Restore: `knife ec restore /tmp/backup/ -c /path/to/s3/knife.rb`
 
 ## New Relic
 We utilize New Relic as our APM and System Monitor, this is setup only if conditions are met
