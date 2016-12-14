@@ -1050,12 +1050,15 @@ Resources:
 
               if [ -z "${!BOOTSTRAP_TAGS}" ] || [ -n "${DBSnapShot}" ]; then
                 echo "[INFO] configuring this node as a regular Chef frontend"
-                aws s3 sync s3://${BUCKET}/etc_opscode /etc/opscode || error_exit "Failed to sync existing Opscode Directory"
-                aws s3 sync s3://${BUCKET}/etc_reporting /etc/opscode-reporting || error_exit "Failed to synx existing Reporting Directory"
+                aws s3 sync s3://${BUCKET}/etc_opscode/pivotal.pem /etc/opscode || error_exit "Failed to sync existing Pivotal Key"
+                aws s3 sync s3://${BUCKET}/etc_opscode/private-chef-secrets.json /etc/opscode || error_exit "Failed to sync existing Chef Secrets"
+                aws s3 sync s3://${BUCKET}/etc_opscode/webui_priv.pem /etc/opscode || error_exit "Failed to sync existing WebUI Key"
+                aws s3 sync s3://${BUCKET}/etc_opscode/webui_pub.pem/etc/opscode || error_exit "Failed to sync existing WebUI Cert"
                 mkdir -p /var/opt/opscode/upgrades || error_exit "Failed to create upgrades directory"
                 touch /var/opt/opscode/bootstrapped || error_exit "Failed to create bootstrap file"
                 aws s3 cp s3://${BUCKET}/migration-level /var/opt/opscode/upgrades/ || error_exit "Failed sync migration-level"
-              else
+              fi
+              if [ -n "${!BOOTSTRAP_TAGS}" ]
               cat > '/tmp/index_create.json' << EOF
                 {
                   "settings": {
@@ -1125,7 +1128,6 @@ Resources:
               # Only write config changes on Bootstrap
               ##########################################################
 
-              if [ -n "${!BOOTSTRAP_TAGS}" ]; then
               cat > '/etc/chef-manage/manage.rb' << EOF
               disable_sign_up ${DisableSignup}
               support_email_address '${SupportEmail}'
@@ -1176,7 +1178,6 @@ Resources:
               postgresql['db_superuser_password'] = '${DBPassword}'
               postgresql['vip'] = '${DBENDPOINT}'
               EOF
-              fi
 
               ##########################################################
               # Configure the Chef Server
@@ -1204,7 +1205,6 @@ Resources:
               if [ -n "${!BOOTSTRAP_TAGS}" ]; then
                 echo "[INFO] syncing secrets up to S3"
                 aws s3 sync /etc/opscode s3://${BUCKET}/etc_opscode || error_exit "Failed to sync bootstrap opscode directory"
-                aws s3 sync /etc/opscode-reporting s3://${BUCKET}/etc_reporting || error_exit "Failed to sync bootstrap reporting directory"
                 aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${BUCKET}/ || error_exit "Failed to sync bootstrap migration-level"
               fi
 
