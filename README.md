@@ -165,8 +165,29 @@ For External:
     -   Restore: `knife ec restore /tmp/backup/ -s https://chef.hearst.at --webui-key /tmp/webui_priv.pem --with-user-sql --sql-host some-db.rds.amazonaws.com --sql-user dbuser --sql-password sup3rs3cr3ts`
 
 ## New Relic
+We utilize New Relic as our APM and System Monitor, this is setup only if conditions are met
+
+**If New Relic License Key Param is Filled Out**
+
+-   What is Enabled:
+    -   New Relic APM (Gem Packaged with Chef)
+        -   Configured via [Code 01](newrelic.sh#L96-L110)
+    -   NGINX Plugin via [MeetMe](https://github.com/MeetMe/newrelic-plugin-agent) Plugin Agent
+        -   Configured via [Code 02](cfn_yml/newrelic.sh#L28-L74)
+    -   New Relic [System Monitor](https://docs.newrelic.com/docs/servers/new-relic-servers-linux/getting-started/new-relic-servers-linux)
+        -   Configured via [Code 03](newrelic.sh#L76-L94)
 
 ## Sumologic
+We utilize Sumologic as our Log Management and Analytics platform, this is setup onl if conditions are met
+
+**If Sumologic Access Key Param is Filled Out**
+
+-   What is Enabled:
+    -   Sumologic Collector
+        -   Configured via [Code 01](sumologic.sh#L34-L40)
+    -   Collection Sources
+        -   Configured for Chef via [Code 02](sumologic.sh#L42-L218)
+        -   Configured for Proxy via [Code 03](sumologic.sh#L220-L283)
 
 ## Contributing
 #### External Contributors

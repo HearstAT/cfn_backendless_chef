@@ -227,17 +227,10 @@ Parameters:
     Type: String
     Default: c4.large
     AllowedValues:
-      - m3.medium
-      - m3.large
-      - m3.xlarge
-      - m3.2xlarge
-      - c3.large
-      - c3.xlarge
-      - c3.2xlarge
-      - c3.4xlarge
-      - c3.8xlarge
       - c4.large
+      - m4.large
       - c4.xlarge
+      - m4.xlarge
       - c4.2xlarge
     ConstraintDescription: must be a valid EC2 instance type.
 
