@@ -90,6 +90,8 @@ To Get an existing SSL Cert in AWS Follow this [Guide](http://docs.aws.amazon.co
 
 or run this command `aws iam get-server-certificate --server-certificate-name`
 
+You'll be looking for something that starts with: `arn:aws:iam::`
+
 You can also use the new [AWS Certificate Manager Service](http://docs.aws.amazon.com/acm/latest/userguide/gs-acm.html) to create and manage certificates
 
 ### Blue/Green Deployment

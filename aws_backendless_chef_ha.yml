@@ -18,7 +18,7 @@ Parameters:
 
   SSLCertificateARN:
     Type: String
-    Default: 'arn:aws:iam::'
+    Default: ''
     Description: SSL Certficate ARN for SSL Certficate
 
   ## Re-Deploy Configuration
@@ -53,7 +53,7 @@ Parameters:
       - chef-a
       - chef-b
       - chef-test
-    Description: subdomain/prefix for chose hosted zone used for staging
+    Description: subdomain/prefix that is combined with the hosted zone entered
 
   ChefServerVersion:
     Type: String
@@ -85,11 +85,11 @@ Parameters:
 
   DisableSignup:
     Type: String
-    Default: 'true'
+    Default: 'false'
     AllowedValues:
       - 'true'
       - 'false'
-    Description: Enter True/False for signup disable (true by default)
+    Description: Enter True/False for signup disable (false by default)
 
   LicenseCount:
     Type: String
