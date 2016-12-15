@@ -49,7 +49,7 @@ Info you need to find/decide on to successfully build our Stack
     -   SSHSecurityGroup; Select group for SSH access
 
 #### Options for Larger Setups
-These are the items to best look when round 5k Nodes checking in
+**Estimated** These are the items to best look when looking at larger node check-ins (5k+ ish)
 
 -   Params to Change only if 4-5k+ Nodes (Estimated; still need to do actual load tests)
     -   DBInstanceType; Default (t2.large) is the minimum required for Chef DB Connections
@@ -60,6 +60,7 @@ These are the items to best look when round 5k Nodes checking in
 #### Optional Setup
 
 -   Restoring Setups; See the [Restore/Backup](#restorebackup-options) Section
+    -   **Important:**  If intending to do external knife ec backups, check this section before setting up.
 -   NewRelic Setup; See the [NewRelic](#new-relic) Section
 -   Sumologic Setup; See the [Sumologic](#sumologic) Section
 
@@ -139,7 +140,7 @@ This is the simplest option from an all AWS standpoint. You also keep the same p
 
 **Note:** Using the AWS S3 cli tools does not replace files! It only checks if they exist. So if creating/replacing any of the files to make etc_opscode, make sure that folder is cleared out or specifically rm the files you are needing to replace.
 
-#### Knife EC Restore
+#### Knife EC Backup/Restore
 If looking to change architecture, DB credentials, or even Pivotal then this is the best option.
 
 This can be down outside the entire Cloudformation process, but if wanting to do it inline see below.
@@ -152,10 +153,14 @@ This can be down outside the entire Cloudformation process, but if wanting to do
 -   Required Params
     -   ExistingBucketName (e.g.; chef-data-bucket)
     -   BackupFilename (e.g.; backup_$date.tar)
+    -   DBPublic (You'll want to set this to `true` - If you wish to do external knife ec commands)
+    -   DBPublicCIDR (e.g.; 192.168.0.1/32, 172.33.0.1/16 - If you wish to do external knife ec commands)
 
 For External:
 
 If you want to sync down the S3 bucket utilized for the instance, there is a knife.rb in the root of the S3 bucket created at build time with all the config data to run the backup or restore commands.
+
+**Note:** be sure to check the required params above to make external backup/restore possible
 
 -   [knife ec](https://github.com/chef/knife-ec-backup) w/ the following items/info
     -   Backup (See backup command below)
@@ -171,6 +176,8 @@ If you want to sync down the S3 bucket utilized for the instance, there is a kni
     -   With knife.rb from S3 Bucket
         -   Backup: `knife ec backup /tmp/backup/ -c /path/to/s3/knife.rb`
         -   Restore: `knife ec restore /tmp/backup/ -c /path/to/s3/knife.rb`
+
+**Note:** You can do the backup just about anywhere, but doing the restore is more important. Doing it on a server in AWS in the same region is ideal as it will be able to upload much faster. Trying to upload from my local laptop has proven trying if not impossible due to the 5Mpbs max upload.
 
 ## New Relic
 We utilize New Relic as our APM and System Monitor, this is setup only if conditions are met
