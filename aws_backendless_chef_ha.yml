@@ -440,7 +440,7 @@ Resources:
     Type: AWS::S3::Bucket
     # conditional look up, if true then creates this resource.
     Condition: ChefBucketCon
-    DeletionPolicy: Delete
+    DeletionPolicy: Retain
     Properties:
       AccessControl: Private
 
@@ -601,7 +601,7 @@ Resources:
   ChefDB:
     Type: AWS::RDS::DBInstance
     Condition: DBCon
-    DeletionPolicy: Delete
+    DeletionPolicy: Snapshot
     Properties:
       DBName: !If [ DBSnapCon, 'chefdb', '' ]
       AllocatedStorage: 50
@@ -1064,20 +1064,10 @@ Resources:
               systemctl restart postfix || error_exit "Failed to restart Postfix"
 
               ##########################################################
-              # Install Chef Server with Manage and Reporting
-              ##########################################################
-
-              CHEFSERVER=$(mktemp); wget "https://packages.chef.io/stable/ubuntu/16.04/chef-server-core_${ChefServerVersion}-1_amd64.deb" -qO $CHEFSERVER && dpkg -i $CHEFSERVER; rm $CHEFSERVER || error_exit "Failed to install Chef Server"
-
-              CHEFMANAGE=$(mktemp); wget "https://packages.chef.io/stable/ubuntu/16.04/chef-manage_${ManageVersion}-1_amd64.deb" -qO $CHEFMANAGE && dpkg -i $CHEFMANAGE; rm $CHEFMANAGE || error_exit "Failed to Install Chef Manage"
-
-              CHEFREPORTING=$(mktemp); wget "https://packages.chef.io/stable/ubuntu/14.04/opscode-reporting_${ReportingVersion}-1_amd64.deb" -qO $CHEFREPORTING && dpkg -i $CHEFREPORTING; rm $CHEFREPORTING || "Failed to Install Chef Reporting"
-
-              mkdir -p /etc/chef-manage/ /etc/opscode/ /etc/opscode-reporting/
-
-              ##########################################################
               # If not Bootstrap or Existing DB, Pull Bootstrap Secrets
               ##########################################################
+
+              mkdir -p /etc/chef-manage/ /etc/opscode/ /etc/opscode-reporting/
 
               if [ -z "${!BOOTSTRAP_TAGS}" ] || [ -n "${DBSnapShot}" ]; then
                 echo "[INFO] configuring this node as a regular Chef frontend"
@@ -1155,6 +1145,16 @@ Resources:
                 echo "[INFO] initializing ElasticSearch index manually"
                 curl -XPUT http://${PROXYIP}/chef/ -d @/tmp/index_create.json || error_exit "Failed to Create ElasticSearch Index Manually"
               fi
+
+              ##########################################################
+              # Install Chef Server with Manage and Reporting
+              ##########################################################
+
+              CHEFSERVER=$(mktemp); wget "https://packages.chef.io/stable/ubuntu/16.04/chef-server-core_${ChefServerVersion}-1_amd64.deb" -qO $CHEFSERVER && dpkg -i $CHEFSERVER; rm $CHEFSERVER || error_exit "Failed to install Chef Server"
+
+              CHEFMANAGE=$(mktemp); wget "https://packages.chef.io/stable/ubuntu/16.04/chef-manage_${ManageVersion}-1_amd64.deb" -qO $CHEFMANAGE && dpkg -i $CHEFMANAGE; rm $CHEFMANAGE || error_exit "Failed to Install Chef Manage"
+
+              CHEFREPORTING=$(mktemp); wget "https://packages.chef.io/stable/ubuntu/14.04/opscode-reporting_${ReportingVersion}-1_amd64.deb" -qO $CHEFREPORTING && dpkg -i $CHEFREPORTING; rm $CHEFREPORTING || "Failed to Install Chef Reporting"
 
               ##########################################################
               # Only write config changes on Bootstrap
@@ -1240,19 +1240,22 @@ Resources:
                 aws s3 sync /etc/opscode s3://${BUCKET}/etc_opscode || error_exit "Failed to sync bootstrap opscode directory"
                 aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${BUCKET}/ || error_exit "Failed to sync bootstrap migration-level"
                 echo "[INFO] Write knife.rb file and syncing for knife ec restore/backup"
-              cat > '/tmp/knife.rb' << EOF
+              cat > '/root/knife.rb' << EOF
               current_dir = File.dirname(__FILE__)
               log_level                :info
               log_location             STDOUT
-              knife[:webui_key] = "#{current_dir}/etc_opscode/webui_key.pem"
+              if(File.exist?('/etc/opscode/webui_key.pem'))
+                knife[:webui_key] = "/etc/opscode/webui_key.pem"
+              else
+                knife[:webui_key] = "#{current_dir}/etc_opscode/webui_key.pem"
+              end
               knife[:with_user_sql] = true
               knife[:sql_user] = '${DBUser}'
               knife[:sql_password] = '${DBPassword}'
               knife[:sql_host] = '${DBENDPOINT}'
               knife[:chef_server_url] = 'https://${ChefSubdomain}.${HostedZone}'
               EOF
-                aws s3 cp /tmp/knife.rb s3://${BUCKET}/knife.rb
-                rm /tmp/knife.rb
+                aws s3 cp /root/knife.rb s3://${BUCKET}/knife.rb
               fi
 
               ##########################################################

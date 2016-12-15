@@ -125,14 +125,19 @@ chef-b and chef-test share subnets, as the intention for chef-test is to test yo
 This is the simplest option from an all AWS standpoint. You also keep the same pivotal credentials
 
 -   Required Items
-    -   Existing S3 Bucket with:
-        -   etc_opscode directory
-        -   etc_reporting directory (can be empty)
+    -   Existing S3 Bucket with (from snapshot setup):
+        -   etc_opscode directory with:
+            -   webui_priv.pem
+            -   webui_pub.pem
+            -   pivotal.pem
+            -   private-chef-secrets.json
         -   migration-level
     -   DB Snapshot (Same Region)
 -   Required Params
-    -   ExistingBucketName (e.g.; chef-data-bucket)
+    -   ExistingBucketName (e.g.; chef-sync-bucket)
     -   DBSnapShot (e.g.; snaphot-date)
+
+**Note:** Using the AWS S3 cli tools does not replace files! It only checks if they exist. So if creating/replacing any of the files to make etc_opscode, make sure that folder is cleared out or specifically rm the files you are needing to replace.
 
 #### Knife EC Restore
 If looking to change architecture, DB credentials, or even Pivotal then this is the best option.
