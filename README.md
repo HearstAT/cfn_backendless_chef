@@ -10,7 +10,7 @@ Cloudformation Templates to build out a complete Backendless Chef Configuration
 -   Built to utilize Ubuntu Xenial
 -   Allows you to choose versions to install on Chef-Server, Manage, and Reporting (Limited to Xenial Supported versions)
 -   Builds out a RDS PostgreSQL Database, Version: 9.5.4
--   Builds out AWS Elasticsearch Domain (Node/Replication Configurable), Version: 2.3
+-   Builds out AWS ElasticSearch Domain (Node/Replication Configurable), Version: 2.3
 
 ## Diagram
 
@@ -41,7 +41,7 @@ Info you need to find/decide on to successfully build our Stack
     -   ChefSubdomain; See [Blue/Green](#bluegreen-deployment) Section for more Info
     -   ChefServerVersion; Select Version to install, versions listed are the only ones that have packages for Ubuntu Xenial
     -   ManageVersion; Select Version to install, versions listed are the only ones that have packages for Ubuntu Xenial
-    -   ReportingVersion; Select Version to install, versions list are the only ones that support Elasticsearch
+    -   ReportingVersion; Select Version to install, versions list are the only ones that support ElasticSearch
     -   DBMultiAZ; Select if you want the DB setup in Multiple Availability Zones
     -   ElasticInstanceType; Default is t2.small.elasticsearch, good for small or testing situations
     -   KeyName; Select SSH Key
@@ -136,9 +136,13 @@ This is the simplest option from an all AWS standpoint. You also keep the same p
     -   DB Snapshot (Same Region)
 -   Required Params
     -   ExistingBucketName (e.g.; chef-sync-bucket)
-    -   DBSnapShot (e.g.; snaphot-date)
+    -   DBSnapShot (e.g.; snapshot-date)
+-   Recommended Params
+    -   RunUpgrade (Set to true)
 
-**Note:** Using the AWS S3 cli tools does not replace files! It only checks if they exist. So if creating/replacing any of the files to make etc_opscode, make sure that folder is cleared out or specifically rm the files you are needing to replace.
+**Run Upgrade:** This will run the `chef-server-ctl upgrade` commands (with all the other necessary additional commands). This is a good idea if creating a stack with a new Chef Server Version. Keep an eye out [here](https://github.com/chef/chef-server/tree/master/omnibus/files/private-chef-upgrades/001) to be sure of any new migration scripts.
+
+**Note:** Using the AWS S3 cli tools does not replace files! It only checks if they exist (or at least it's super un-reliable). So if creating/replacing any of the files to make etc_opscode, make sure that folder is cleared out or specifically rm the files you are needing to replace.
 
 #### Knife EC Backup/Restore
 If looking to change architecture, DB credentials, or even Pivotal then this is the best option.
@@ -192,7 +196,7 @@ Installed via [newrelic.sh](newrelic.sh)
     -   New Relic [System Monitor](https://docs.newrelic.com/docs/servers/new-relic-servers-linux/getting-started/new-relic-servers-linux)
 
 ## Sumologic
-We utilize Sumologic as our Log Management and Analytics platform, this is setup onl if conditions are met
+We utilize Sumologic as our Log Management and Analytics platform, this is setup only if conditions are met
 
 **If Sumologic Access Key Param is Filled Out**
 
@@ -203,6 +207,16 @@ Installed via [sumologic.sh](sumologic.sh)
     -   Collection Sources
         -   Configured log collections for Chef and System Logs
         -   Configured for Proxy logs and System Logs
+
+## Work Around Implemented in this Setup
+This is where it gets ugly, a lot of this has been reported and hoping to remove these.
+
+-   Chef Server
+    -   Chef Reporting; currently not supported for Xenial and there is a sed command to swap out the service which is setting this up (upstart vs systemd) so it will install and function.
+    -   Chef Server Upgrade; Partybus or more specifically the private chef cookbook does not support the external database configurations. There is a manual replacement inside the userdata swapping out the ERB in the private chef cookbook so it's configured correctly.
+    -   Chef NGINX Servername; you cannot set multiple server names via the `nginx['server_name']` option in chef-server.rb or it will create a private cert (regardless is using a ssl setup or not) with the spaces in it and NGINX cannot parse the path. So I am manually setting the cert locations and copying the cert/key in question into a more appropriately named one.
+-   ElasticSearch
+    -   ElasticSearch Auth/Access; AWS ElasticSearch does not live within the VPC so the security options are limited. You either have to setup some kind of locally installed proxy with Auth/Signing or Setup a Proxy/NAT with a whitelisted IP. I have chose to setup a NGINX Proxy box with a whitelisted EIP to solve this issue for now.
 
 ## Contributing
 #### External Contributors

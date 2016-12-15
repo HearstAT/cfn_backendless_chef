@@ -22,14 +22,13 @@ Parameters:
     Description: SSL Certficate ARN for SSL Certficate
 
   ## Re-Deploy Configuration
-  # Placeholder until issues worked out
-  # RunUpgrade:
-  #   Type: String
-  #   Default: 'false'
-  #   AllowedValues:
-  #     - 'true'
-  #     - 'false'
-  #   Description: Select True/False if you wish to run chef upgrade procedures (Good for upgraing versions in place or using DB snapshot)
+  RunUpgrade:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Select True/False if you wish to run chef upgrade procedures
 
   BackupFilename:
     Type: String
@@ -1178,7 +1177,6 @@ Resources:
               postgresql['external'] = true
               postgresql['vip'] = '${DBENDPOINT}'
               postgresql['db_superuser'] = '${DBUser}'
-              postgresql['username'] = '${DBUser}'
               postgresql['db_superuser_password'] = '${DBPassword}'
               oc_chef_authz['http_init_count'] = 100
               oc_chef_authz['http_queue_max'] = 200
@@ -1213,6 +1211,23 @@ Resources:
               EOF
 
               ##########################################################
+              # Chef Upgrade Work Around
+              ##########################################################
+
+              cat > '/opt/opscode/embedded/cookbooks/private-chef/templates/default/partybus_config.rb.erb' << 'EOF'
+              Partybus.configure do |c|
+                c.database_connection_string    = "${DBENDPOINT}:5432"
+                c.database_migration_directory  = "/opt/opscode/embedded/service/chef-sql-schema/db/migrate"
+                c.partybus_migration_directory  = "/opt/opscode/embedded/upgrades"
+                c.migration_state_file          = "/var/opt/opscode/upgrades/migration-level"
+                c.private_chef_role             = "<%= @node_role %>"
+                c.is_data_master                = <%= @is_data_master %>
+                c.bootstrap_server              = <%= @bootstrap_server %>
+                c.couchdb_data_dir              = "<%= node['private_chef']['couchdb']['data_dir'] %>"
+              end
+              EOF
+
+              ##########################################################
               # Configure the Chef Server
               ##########################################################
 
@@ -1230,6 +1245,13 @@ Resources:
               ##########################################################
 
               chef-manage-ctl reconfigure --accept-license || error_exit "Chef Manage Reconfigure Failed"
+
+              ##########################################################
+              # Configure Chef Reporting and Xenial Work Around
+              ##########################################################
+
+              sed -i 's/runit_upstart/runit_sysvinit/g' /opt/opscode-reporting/embedded/cookbooks/enterprise/recipes/runit.rb
+              opscode-reporting-ctl reconfigure --accept-license || error_exit "Chef Manage Reconfigure Failed"
 
               ##########################################################
               # If Bootstrap/Master Node, Sync Secrets and Knife.rb
@@ -1286,13 +1308,13 @@ Resources:
               ##########################################################
               # Upgrade Chef Chef if Selected
               ##########################################################
-              ## Placeholder for now as there are some work arounds required
-              # if [ -n "${!BOOTSTRAP_TAGS}" ] && [ "${!RunUpgrade}" == 'true' ]; then
-              #   chef-server-ctl stop || error_exit "Chef Server Restart Failed"
-              #   chef-server-ctl upgrade || error_exit "Chef Server Restart Failed"
-              #   chef-server-ctl start || error_exit "Chef Server Restart Failed"
-              #   chef-server-ctl cleanup || error_exit "Chef Server Restart Failed"
-              # fi
+
+              if [ -n "${!BOOTSTRAP_TAGS}" ] && [ "${RunUpgrade}" == 'true' ]; then
+                 chef-server-ctl stop || error_exit "Chef Server Restart Failed"
+                 chef-server-ctl upgrade || error_exit "Chef Server Restart Failed"
+                 chef-server-ctl start || error_exit "Chef Server Restart Failed"
+                 chef-server-ctl cleanup || error_exit "Chef Server Restart Failed"
+              fi
 
               ##########################################################
               # Restart Chef Server
