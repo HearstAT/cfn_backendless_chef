@@ -1251,7 +1251,7 @@ Resources:
               ##########################################################
 
               sed -i 's/runit_upstart/runit_sysvinit/g' /opt/opscode-reporting/embedded/cookbooks/enterprise/recipes/runit.rb
-              opscode-reporting-ctl reconfigure --accept-license || error_exit "Chef Manage Reconfigure Failed"
+              opscode-reporting-ctl reconfigure --accept-license || error_exit "Chef Reporting Reconfigure Failed"
 
               ##########################################################
               # If Bootstrap/Master Node, Sync Secrets and Knife.rb
