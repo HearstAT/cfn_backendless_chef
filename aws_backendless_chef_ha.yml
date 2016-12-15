@@ -619,7 +619,7 @@ Resources:
       DBSubnetGroupName: !Ref DBSubnetGroup
       DBSecurityGroups:
         - !Ref DBSecurityGroup
-      PubliclyAccessible: !Ref DBPublic
+      PubliclyAccessible: !If [ DBPublicTrue, true, false ]
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-pgdb
