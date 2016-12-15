@@ -141,7 +141,7 @@ Parameters:
     AllowedValues:
       - 'true'
       - 'false'
-    Description: Select True or False for Multi AZ DB Setup
+    Description: Select True or False for Multi Availability Zone DB Setup
 
   DBURL:
     Type: String
