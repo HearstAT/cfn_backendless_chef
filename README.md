@@ -104,29 +104,25 @@ Below describes how this is accomplished, but there is a manual step require to 
 -   Blue/Green Options:
     -   ChefSubdomain Param; Enabled having a chef-a, chef-b, and even a chef-test subdomain created
         -   Subnets are changed based on these settings
-    -   Server names are created based on the Subdomain and a prime chef.domain.com to support the multi-dns setup; [Code](aws_backendless_chef_ha.yml#L1149)
-    -   There is a workaround for the odd cert creation caused by the multiple server name setup;
-        -   Specify Cert Location: [Code 01](aws_backendless_chef_ha.yml#L1147-L1148)
-        -   Copy badly name cert to expected one: [Code 02](aws_backendless_chef_ha.yml#L1194-L1200)
+    -   Server names are created based on the Subdomain and a prime chef.domain.com to support the multi-dns setup
+    -   There is a workaround for the odd cert creation caused by the multiple server name setup
+        -   Specify Cert Location in chef-server.rb & Copy badly name cert to expected one
 
 **In place upgrades are not supported yet.**
 
 #### Subnet Switching
 
 To support using the blue/green domains. There is a switch in place depending on if you select chef-a or chef-b
--   Subnet Section [Code 01](aws_backendless_chef_ha.yml#L357-L408)
--   Switch Command [Code 02](https://github.com/HearstAT/cfn_backendless_chef/blob/cfn_yml/aws_backendless_chef_ha.yml#L368)
--   Conditional [Code 03](aws_backendless_chef_ha.yml#L336-L337)
 
 Chef-a has it's own set of subnets.
 
-chef-b and chef-test chare subnets, as the intention for chef-test is to test your deploys/changes/etc in another region/vpc
+chef-b and chef-test share subnets, as the intention for chef-test is to test your deploys/changes/etc in another region/vpc
 
 ### Restore/Backup Options
 
 #### Database Snapshot
 
-This is the simplest option from a all AWS standpoint. You also keep the same pivotal credentials
+This is the simplest option from an all AWS standpoint. You also keep the same pivotal credentials
 
 -   Required Items
     -   Existing S3 Bucket with:
@@ -144,7 +140,7 @@ If looking to change architecture, DB credentials, or even Pivotal then this is 
 This can be down outside the entire Cloudformation process, but if wanting to do it inline see below.
 
 -   Required Items
-    -   [knife ec](https://github.com/chef/knife-ec-backup) backup in a tar file
+    -   [knife ec backup](https://github.com/chef/knife-ec-backup) in a tar file
     -   Exisitng S3 Bucket with:
         -   chef_ec_backups folder
         -   Tar file from above in chef_ec_backups folder
@@ -154,19 +150,19 @@ This can be down outside the entire Cloudformation process, but if wanting to do
 
 For External:
 
-If you want to sync down the S3 bucket utilized for the instance, there is a knife.rb in the root of the S3 bucket created at build time with all the config data to run the backup or restore commands. [Code 01](aws_backendless_chef_ha.yml#L1222-L1235)
+If you want to sync down the S3 bucket utilized for the instance, there is a knife.rb in the root of the S3 bucket created at build time with all the config data to run the backup or restore commands.
 
 -   [knife ec](https://github.com/chef/knife-ec-backup) w/ the following items/info
     -   Backup (See backup command below)
-    -   Folling Info: (This comes included in the knife.rb synced to the S3 Bucket)
+    -   Info/Files Needed: (This comes included in the knife.rb synced to the S3 Bucket)
         -   PostgreSQL Endpoint
         -   DB User
         -   DB Password
         -   webui_priv.pem (found in /etc/opscode on existing server or S3 sync bucket under etc_opscode)
 -   Command to run
     -   Without knife.rb in S3 Bucket
-        -   Backup: `knife ec backup /tmp/backup/ -s https://chef.hearst.at --webui-key /tmp/webui_priv.pem --with-user-sql --sql-host some-db.rds.amazonaws.com --sql-user dbuser --sql-password sup3rs3cr3ts`
-        -   Restore: `knife ec restore /tmp/backup/ -s https://chef.hearst.at --webui-key /tmp/webui_priv.pem --with-user-sql --sql-host some-db.rds.amazonaws.com --sql-user dbuser --sql-password sup3rs3cr3ts`
+        -   Backup: `knife ec backup /tmp/backup/ -s https://chef.domain.com --webui-key /tmp/webui_priv.pem --with-user-sql --sql-host some-db.rds.amazonaws.com --sql-user dbuser --sql-password sup3rs3cr3ts`
+        -   Restore: `knife ec restore /tmp/backup/ -s https://chef.domain.com --webui-key /tmp/webui_priv.pem --with-user-sql --sql-host some-db.rds.amazonaws.com --sql-user dbuser --sql-password sup3rs3cr3ts`
     -   With knife.rb from S3 Bucket
         -   Backup: `knife ec backup /tmp/backup/ -c /path/to/s3/knife.rb`
         -   Restore: `knife ec restore /tmp/backup/ -c /path/to/s3/knife.rb`
@@ -176,25 +172,25 @@ We utilize New Relic as our APM and System Monitor, this is setup only if condit
 
 **If New Relic License Key Param is Filled Out**
 
+Installed via [newrelic.sh](newrelic.sh)
+
 -   What is Enabled:
     -   New Relic APM (Gem Packaged with Chef)
-        -   Configured via [Code 01](newrelic.sh#L96-L110)
     -   NGINX Plugin via [MeetMe](https://github.com/MeetMe/newrelic-plugin-agent) Plugin Agent
-        -   Configured via [Code 02](cfn_yml/newrelic.sh#L28-L74)
     -   New Relic [System Monitor](https://docs.newrelic.com/docs/servers/new-relic-servers-linux/getting-started/new-relic-servers-linux)
-        -   Configured via [Code 03](newrelic.sh#L76-L94)
 
 ## Sumologic
 We utilize Sumologic as our Log Management and Analytics platform, this is setup onl if conditions are met
 
 **If Sumologic Access Key Param is Filled Out**
 
+Installed via [sumologic.sh](sumologic.sh)
+
 -   What is Enabled:
     -   Sumologic Collector
-        -   Configured via [Code 01](sumologic.sh#L34-L40)
     -   Collection Sources
-        -   Configured for Chef via [Code 02](sumologic.sh#L42-L218)
-        -   Configured for Proxy via [Code 03](sumologic.sh#L220-L283)
+        -   Configured log collections for Chef and System Logs
+        -   Configured for Proxy logs and System Logs
 
 ## Contributing
 #### External Contributors

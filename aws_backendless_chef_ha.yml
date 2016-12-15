@@ -131,6 +131,11 @@ Parameters:
       - 'false'
     Description: Select True or False if you want your Database public facing (i.e.; if doing knife-ec-backup externally)
 
+  DBPublicCIDR:
+    Type: String
+    Default: ''
+    Description: Enter CIDR Range for Public Access (e.g.; 192.168.0.1/32, 172.33.0.0/16)
+
   DBMultiAZ:
     Type: String
     Default: 'false'
@@ -290,6 +295,7 @@ Metadata:
         - DBPassword
         - DBInstanceType
         - DBPublic
+        - DBPublicCIDR
         - DBMultiAZ
         - DBURL
     -
@@ -347,6 +353,10 @@ Conditions:
   # Set necessary items if Snapshot ID present
   DBSnapCon:
     !Equals [ !Ref DBSnapShot, '' ]
+  DBPublicTrue:
+    !Equals [ !Ref DBPublic, 'true' ]
+  DBPublicFalse:
+    !Equals [ !Ref DBPublic, 'false' ]
 
 Mappings:
   RegionMap:
@@ -486,11 +496,22 @@ Resources:
 
   DBSecurityGroup:
     Type: AWS::RDS::DBSecurityGroup
+    Condition: DBPublicFalse
     Properties:
       EC2VpcId: !Ref VPC
       DBSecurityGroupIngress:
         - EC2SecurityGroupId: !Ref FrontendSecurityGroup
       GroupDescription: "Chef Database Access Group"
+
+  DBSecurityGroupPublic:
+    Type: AWS::RDS::DBSecurityGroup
+    Condition: DBPublicTrue
+    Properties:
+      EC2VpcId: !Ref VPC
+      DBSecurityGroupIngress:
+        - EC2SecurityGroupId: !Ref FrontendSecurityGroup
+        - CIRDIP: !Ref DBPublicCIDR
+      GroupDescription: "Chef Database Access Group w/ Public"
 
   LoadBalancerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
