@@ -1,16 +1,8 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
-Description: >
-  AWS HA Chef Server 2.0 - Backendless Chef - Ubuntu Xenial Based (20161214 AMI Build)
-  "Backendless" Chef utilizing AWS as Backend for PostgreSQL and Elasticsearch
-  Sets up the following:
-    Backendless Items
-    * Elasticsearch 2.3 Cluster
-      * NGINX Proxy with Whitelisted EIP for ES Access
-    * PostgreSQL 9.5.4
+Description: AWS HA Chef Server 2.0 - Backendless Chef - Ubuntu Xenial Based (20161214 AMI Build)
 
 Parameters:
-
   ## Domain Configuration
   HostedZone:
     Type: String
