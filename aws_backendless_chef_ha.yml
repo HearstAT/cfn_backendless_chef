@@ -982,26 +982,20 @@ Resources:
               apt-get install -y wget curl python-setuptools python-pip git
 
               ##########################################################
-              # Install cfn bootstraping tools
+              # Install AWS & CFN Tools
               ##########################################################
 
               if [ -z $(command -v cfn-signal) ]; then
                   easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz
               fi
 
-              ##########################################################
-              # Install AWS Cli Tools
-              ##########################################################
-
               if [ -z $(command -v aws) ]; then
-                # Something between the easy install and pip install are causing issues.
-                # Adding sleep to slow it down a bit to let whatever it is clear out.
                 sleep 5
                 pip install awscli
               fi
 
               ##########################################################
-              # Global Variable Set
+              # Global Variable Set & Helper Set
               ##########################################################
 
               export DEBIAN_FRONTEND=noninteractive
@@ -1015,10 +1009,6 @@ Resources:
               else
                 export WAITHANDLE='${FrontendWaitHandle}'
               fi
-
-              ##########################################################
-              # Helper function to set wait timer
-              ##########################################################
 
               error_exit()
               {
@@ -1146,7 +1136,6 @@ Resources:
                 }
               EOF
 
-                echo "[INFO] configuring this node as a Bootstrap Chef frontend"
                 echo "[INFO] initializing ElasticSearch index manually"
                 curl -XPUT http://${PROXYIP}/chef/ -d @/tmp/index_create.json || error_exit "Failed to Create ElasticSearch Index Manually"
               fi
@@ -1234,27 +1223,19 @@ Resources:
               EOF
 
               ##########################################################
-              # Configure the Chef Server
+              # Configure the Chef Server & NGINX Work Around
               ##########################################################
 
               chef-server-ctl reconfigure --accept-license || error_exit "Chef Server Reconfigure Failed"
-
-              ##########################################################
-              # Non-SSl Multi Servername Alias Workaround
-              ##########################################################
 
               cp -f /var/opt/opscode/nginx/ca/${ChefSubdomain}.${HostedZone}\ chef.${HostedZone}.key /var/opt/opscode/nginx/ca/${ChefSubdomain}.${HostedZone}.key || error_exit "Failed to copy key for Chef NGINX Workaround"
               cp -f /var/opt/opscode/nginx/ca/${ChefSubdomain}.${HostedZone}\ chef.${HostedZone}.crt /var/opt/opscode/nginx/ca/${ChefSubdomain}.${HostedZone}.crt || error_exit "Failed to copy cert for Chef NGINX Workaround"
 
               ##########################################################
-              # Configure the Chef Manage
+              # Configure Chef Manage, Reporting, & Xenial Work Around
               ##########################################################
 
               chef-manage-ctl reconfigure --accept-license || error_exit "Chef Manage Reconfigure Failed"
-
-              ##########################################################
-              # Configure Chef Reporting and Xenial Work Around
-              ##########################################################
 
               sed -i 's/runit_upstart/runit_sysvinit/g' /opt/opscode-reporting/embedded/cookbooks/enterprise/recipes/runit.rb
               opscode-reporting-ctl reconfigure --accept-license || error_exit "Chef Reporting Reconfigure Failed"
@@ -1290,7 +1271,7 @@ Resources:
               ##########################################################
               # NewRelic Config if Enabled
               ##########################################################
-              ## No need to for error_exit here, it's exported and utilized inside the script
+
               if [ -n "${NewRelicAppName}" ]; then
                 wget -qO /root/newrelic.sh 'https://github.com/HearstAT/cfn_backendless_chef/raw/${GitBranch}/newrelic.sh' && bash /root/newrelic.sh ${NewRelicLicense} ${NewRelicAppName}
               fi
@@ -1327,7 +1308,7 @@ Resources:
               # Restart Chef Server
               ##########################################################
 
-              # if [ "${!RunUpgrade}" == 'false' ]; then
+              # if [ "${RunUpgrade}" == 'false' ]; then
                 chef-server-ctl restart || error_exit "Chef Server Restart Failed"
               # fi
 
@@ -1346,11 +1327,10 @@ Resources:
               /usr/local/bin/cfn-signal -e 0 -r 'Server setup complete' "${!WAITHANDLE}"
 
               ##########################################################
-              # Reboot After Succes for all updates made
+              # Reboot After Success for all updates made
               ##########################################################
 
               reboot
-
             - { DBENDPOINT: !If [ DBCon, !GetAtt ChefDB.Endpoint.Address, !Ref DBURL ], BUCKET: !If [ ChefBucketCon, !Ref ChefBucket, !Ref ExistingBucketName ], PROXYIP: !GetAtt ProxyInstance.PrivateIp }
 
   ProxyWaitHandle:
