@@ -1,0 +1,967 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "Cloudformation Backendless Chef v1.1"
+Parameters:
+
+  # CookBook Utilized: Helps set domain on servers as well
+  HostedZone:
+    Type: String
+    Default: domain.com
+    Description: must match a route53 hosted domain/zone
+
+  # CookBook Utilized: Let's backend cookbook know the same (passed into attributes). Also utilized in conditionals
+  BackendSSL:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Choose to use backend ssl in addition to ELB ssl
+
+  # CookBook Utilized:
+  ChefSubdomain:
+    Type: String
+    Default: chef-a
+    AllowedValues:
+      - chef-a
+      - chef-b
+      - chef-test
+    Description: subdomain/prefix for chose hosted zone used for staging
+
+  # CookBook Utilized:
+  ChefServerVersion:
+    Type: String
+    Default: "12.9.1"
+    AllowedValues:
+      - "12.9.1"
+      - "12.9.0"
+      - "12.8.0"
+      - "12.7.0"
+      - "12.6.0"
+      - "12.5.0"
+      - "12.4.1"
+    Description: Choose Version of Chef Server to Install (All Supported Versions listed)
+
+  # CookBook Utilized:
+  ManageVersion:
+    Type: String
+    Default: "2.4.3"
+    AllowedValues:
+      - "2.4.3"
+      - "2.4.2"
+      - "2.4.1"
+      - "2.4.0"
+      - "2.3.0"
+      - "2.2.1"
+      - "2.2.0"
+      - "2.1.2"
+      - "2.1.1"
+      - "2.1.0"
+    Description: Choose Version of Chef Manage to Install (All Supported Versions listed)
+
+  # CookBook Utilized:
+  ReportingVersion:
+    Type: String
+    Default: "Null"
+    AllowedValues:
+      - "Null"
+    Description: Choose Version of Chef Reporting to Install (All Supported Versions listed)
+
+  SSLCertificateARN:
+    Type: String
+    Default: 'arn:aws:iam::'
+    Description: SSL Certficate ARN for SSL Certficate
+
+  # CookBook Utilized:
+  SignupDisable:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Enter True/False for signup disable (false by default)
+
+  # CookBook Utilized:
+  SupportEmail:
+    Type: String
+    Default: atat@hearst.com
+    Description: Enter Support Email for Chef Server (Optional)
+
+  # CookBook Utilized:
+  MailHost:
+    Type: String
+    Default: smtp.mailgun.org
+    Description: Enter Mail Host (Optional)
+
+  # CookBook Utilized:
+  MailPort:
+    Type: String
+    Default: '587'
+    Description: Enter Port for Mail Host (Optional)
+
+  # CookBook Utilized:
+  ChefDir:
+    Type: String
+    Default: "/root/chef"
+    Description: Enter location for client.rb, role.json, & berks functions/creation
+
+  # CookBook Utilized:
+  LicenseCount:
+    Type: String
+    Default: '25'
+    Description: Enter how many licenses you have purchased
+
+  ExistingDB:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Set true only if you have an existing PostgreSQL Instance
+
+ # CookBook Utilized: Pulls from citadel
+  DBUser:
+    Type: String
+    Default: ''
+    Description: Enter DB User Name (Used for both existing and new DB)
+
+  # CookBook Utilized: Pulls from citadel
+  DBPassword:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter DB Password (Used for both existing and new DB)
+
+  # CookBook Utilized:
+  DBPort:
+    Type: String
+    Default: '5432'
+    Description: Enter DB Port (Only Required if Using Existing DB)
+
+  # CookBook Utilized:
+  DBURL:
+    Type: String
+    Default: ''
+    Description: Enter DB URL or VIP (Only Required if Using Existing DB)
+
+  UseExistingBucket:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Choose to use an existing bucket from previous installation
+
+  BucketName:
+    Type: String
+    Default: ''
+    Description: Leave Empty! Unless using existing bucket, then enter bucket name here
+
+  # CookBook Utilized:
+  ExistingInstall:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Choose only if existing install (i.e.; Previous External DB and Existing S3 Bucket)
+
+  # CookBook Utilized: Pulls from citadel
+  MailCreds:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter Mail Credentials (e.g.; $username:$password)
+
+  # CookBook Utilized:
+  NewRelicAppName:
+    Type: String
+    Default: chef_ha_stack
+    Description: Enter New Relic Application Name
+
+  # CookBook Utilized: Pulls from citadel
+  NewRelicLicense:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter New Relic License Key
+
+  # CookBook Utilized:
+  NewRelicEnable:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Choose to enable/disable New Relic
+
+  # CookBook Utilized:
+  SumologicEnable:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Choose to enable/disable Sumologic
+
+  SumologicAccessID:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter Sumologic Access ID
+
+  # CookBook Utilized: Pulls from citadel
+  SumologicAccessKey:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter Sumologic Access Key
+
+  # CookBook Utilized: Pulls from citadel
+  SumologicPassword:
+    Type: String
+    NoEcho: 'true'
+    Default: ''
+    Description: Enter Sumologic Password
+
+  # CookBook Utilized:
+  S3Dir:
+    Type: String
+    Default: "/opt/chef-s3"
+    Description: Path to mount S3 Bucket to (created during CFN run)
+
+  # Berks Vendored
+  Cookbook:
+    Type: String
+    Default: backendless_chef
+    Description: Cookbook Name
+
+  # Berks Vendored
+  CookbookGit:
+    Type: String
+    Default: https://github.com/HearstAT/cookbook_backendless_chef
+    Description: Git Clone URI for Cookbook
+
+  # Berks Vendored
+  CookbookGitBranch:
+    Type: String
+    Default: master
+    Description: Git Clone Branch
+
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+
+  SSHSecurityGroup:
+    Description: Select Security Group for SSH Access
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: ''
+
+  # CookBook Utilized:
+  BackupEnable:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Select True/False if you wanted to enable backups
+
+  CIDRA:
+    Type: String
+    Default: 172.33.10.0/24
+    Description: Subnet A CIDR Block
+
+  CIDRB:
+    Type: String
+    Default: 172.33.20.0/24
+    Description: Subnet A CIDR Block
+
+  CIDRC:
+    Type: String
+    Default: 172.33.30.0/24
+    Description: Subnet A CIDR Block
+
+  VPC:
+    Description: Choose VPC to use
+    Type: AWS::EC2::VPC::Id
+    Default: ''
+
+  InstanceType:
+    Type: String
+    Default: c4.large
+    AllowedValues:
+      - m3.medium
+      - m3.large
+      - m3.xlarge
+      - m3.2xlarge
+      - c3.large
+      - c3.xlarge
+      - c3.2xlarge
+      - c3.4xlarge
+      - c3.8xlarge
+      - c4.large
+      - c4.xlarge
+      - c4.2xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    -
+      Label:
+        default: Domain Configuration
+      Parameters:
+        - HostedZone
+        - SSLCertificateARN
+    -
+      Label:
+        default: Bucket Configuration
+      Parameters:
+        - UseExistingBucket
+        - BucketName
+    -
+      Label:
+        default: Re-Deploy Configuration (When Using Existing Items)
+      Parameters:
+        - ExistingInstall
+    -
+      Label:
+        default: Chef Configuration
+      Parameters:
+        - ChefSubdomain
+        - SignupDisable
+        - SupportEmail
+        - LicenseCount
+        - ChefDir
+        - S3Dir
+        - BackupEnable
+        - ChefServerVersion
+        - ManageVersion
+        - ReportingVersion
+    -
+      Label:
+        default: Database Configuration
+      Parameters:
+        - ExistingDB
+        - DBUser
+        - DBPassword
+        - DBPort
+        - DBURL
+    -
+      Label:
+        default: Mail Configuration (Optional)
+      Parameters:
+        - MailCreds
+        - MailHost
+        - MailPort
+    -
+      Label:
+        default: New Relic Configuration (Optional)
+      Parameters:
+        - NewRelicEnable
+        - NewRelicAppName
+        - NewRelicLicense
+    -
+      Label:
+        default: Sumologic Configuration (Optional)
+      Parameters:
+        - SumologicEnable
+        - SumologicAccessID
+        - SumologicAccessKey
+        - SumologicPassword
+    -
+      Label:
+        default: External Build Items
+      Parameters:
+        - Cookbook
+        - CookbookGit
+        - CookbookGitBranch
+    -
+      Label:
+        default: Instance & Network Configuration
+      Parameters:
+        - InstanceType
+        - BackendSSL
+        - KeyName
+        - VPC
+        - SSHSecurityGroup
+        - CIDRA
+        - CIDRB
+        - CIDRC
+
+Mappings:
+  RegionMap:
+    us-west-2:
+      HVM64: ami-167ba776
+    eu-west-1:
+      HVM64: ami-844e0bf7
+
+# Conditions to trigger off parameters choices
+Conditions:
+  # Will let ChefBucket resource know if to create or not based on param choice
+  CreateChefBucket:
+    !Equals [ !Ref UseExistingBucket, false ]
+  # Will let PrimaryElasticLoadBalancer resource know if to use 80/443 on app side connection.
+  BackendSSLCon:
+    !Equals [ !Ref BackendSSL, true ]
+  # Will let ChefDB resource know if to create or not, this allows a user to use an exisitng DB if they wish
+  DBCon:
+    !Equals [ !Ref ExistingDB, false ]
+
+Resources:
+  # Create the necessary subnets for ELB
+  SubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      # Get Availability Zones and select first in string
+      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+      CidrBlock: !Ref CIDRA
+      Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
+        - Name: !Sub ${ChefSubdomain}-Public-Subnet-A
+        - Application: !Ref AWS::StackId
+        - Network: "Public"
+  # Create the necessary subnets for ELB
+  SubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      # Get Availability Zones and select second in string
+      AvailabilityZone: !Select [ 1, !GetAZs "" ]
+      CidrBlock: !Ref CIDRB
+      Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
+        - Name: !Sub ${ChefSubdomain}-Public-Subnet-B
+        - Application: !Ref AWS::StackId
+        - Network: "Public"
+  # Create the necessary subnets for ELB
+  SubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      # Get Availability Zones and select third in string
+      AvailabilityZone: !Select [ 2, !GetAZs "" ]
+      CidrBlock: !Ref CIDRC
+      Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
+      - Name: !Sub ${ChefSubdomain}-Public-Subnet-C
+      - Application: !Ref AWS::StackId
+      - Network: "Public"
+  # Create the necessary subnet for RDS PostgreSQL
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Condition: DBCon
+    Properties:
+      DBSubnetGroupDescription: "Chef DB Subnet Group"
+      SubnetIds:
+          - !Ref SubnetA
+          - !Ref SubnetB
+          - !Ref SubnetC
+      Tags:
+        -
+          # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
+          Name: !Sub "${ChefSubdomain} DB Subnet Group"
+  # If condition statements are met, a bucket will be created to store citadel and other info in
+  ChefBucket:
+    Type: AWS::S3::Bucket
+    # conditional look up, if true then creates this resource.
+    Condition: CreateChefBucket
+    DeletionPolicy: Retain
+    Properties:
+      AccessControl: Private
+  ChefRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+  RolePolicies:
+    Type: AWS::IAM::Policy
+    Properties:
+      # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
+        PolicyName: !Sub ${ChefSubdomain}-S3Role-${AWS::Region}
+        PolicyDocument: !Sub |
+          {
+              "Version" : "2012-10-17",
+              "Statement":[
+              {
+                  "Effect":"Allow",
+                  "Action": [ "s3:*" ],
+                  # Uses conditionals here to decide whether to pass in the created bucket or the existing one depending on parameter selected
+                  "Resource": [ [ "Fn::Join": [ "", [ "arn:aws:s3:::", [ "Fn::If": CreateChefBucket, ${ChefBucket}, ${BucketName} ] ] ] ],
+                                [ "Fn::Join": [ "", [ "arn:aws:s3:::", [ "Fn::If": CreateChefBucket, ${ChefBucket}, ${BucketName} ], "/*" ] ] ] ]
+              },
+              {
+                  "Effect":"Allow",
+                  "Action": [ "s3:List*" ],
+                  "Resource": "arn:aws:s3:::*"
+              } ]
+            },
+            "Roles": [ ${ChefRole} ]
+          }
+  ChefInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+      - !Ref ChefRole
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Setup Ingress/Egress for Chef Frontend Load Balancer
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: '443'
+        ToPort: '443'
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: '0'
+        ToPort: '65535'
+        CidrIp: 0.0.0.0/0
+      Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
+      - Name: !Sub ${ChefSubdomain}-ELB-SecurityGroup
+
+  PrimaryElasticLoadBalancer:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      Subnets:
+        - !Ref SubnetA
+        - !Ref SubnetB
+        - !Ref SubnetC
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+      LBCookieStickinessPolicy:
+        - PolicyName: PublicELBCookieStickinessPolicy
+          CookieExpirationPeriod: '3600'
+      Listeners:
+          # Uses conditionals to set 443 or 80 based on parameter selection
+        - InstancePort: !If [ BackendSSLCon, 443, 80 ]
+          LoadBalancerPort: '443'
+          InstanceProtocol: HTTPS
+          Protocol: HTTPS
+          PolicyNames:
+            - PublicELBCookieStickinessPolicy
+          SSLCertificateId: !Ref SSLCertificateARN
+      HealthCheck:
+        # Uses conditionals to determine if healthcheck hits 80 or 443
+        Target: !If [ BackendSSLCon, "HTTPS:443/humans.txt", "HTTP:80/humans.txt" ]
+        HealthyThreshold: '2'
+        UnhealthyThreshold: '10'
+        Interval: '90'
+        Timeout: '60'
+      Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
+        - Name: !Sub ${ChefSubdomain}-ELB
+
+  ChefDNS:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
+      HostedZoneName: !Sub "${HostedZone}."
+      Comment: !Sub Zone apex alias targeted to ${ChefSubdomain} ELB.
+      RecordSets:
+          # Create DNS A Record by joining ChefSubdomain + HostedZone
+        - Name: !Join [ '', [ !Ref ChefSubdomain, ".", !Ref HostedZone, "." ] ]
+          Type: A
+          AliasTarget:
+            HostedZoneId: !GetAtt PrimaryElasticLoadBalancer.CanonicalHostedZoneNameID
+            DNSName: !GetAtt PrimaryElasticLoadBalancer.CanonicalHostedZoneName
+
+  FrontendSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Setup Ingress/Egress for Chef Frontend
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '9090'
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '9090'
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          SourceSecurityGroupId: !Ref SSHSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: '0'
+          ToPort: '65535'
+          CidrIp: 0.0.0.0/0
+      Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
+        - Name: !Sub ${ChefSubdomain}-Frontend-Security-Group
+
+  ChefDBSecurityGroup:
+    Type: AWS::RDS::DBSecurityGroup
+    Condition: DBCon
+    Properties:
+      EC2VpcId: !Ref VPC
+      DBSecurityGroupIngress:
+        -
+          EC2SecurityGroupName: !Ref FrontendSecurityGroup
+      GroupDescription: "Frontend Access"
+
+  # Backendless Setup 1 of 2: Sets up an external elasticsearch
+  ElasticsearchDomain:
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      ElasticsearchVersion: 2.3
+      ElasticsearchClusterConfig:
+        DedicatedMasterEnabled: true
+        InstanceCount: 2
+        ZoneAwarenessEnabled: true
+        InstanceType: t2.medium.elasticsearch
+      EBSOptions:
+        EBSEnabled: true
+        Iops: 0
+        VolumeSize: 20
+        VolumeType: gp2
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: 0
+      AccessPolicies:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              AWS: "*"
+            Action: "es:*"
+            Resource: "*"
+      AdvancedOptions:
+        rest.action.multi.allow_explicit_index: "true"
+
+  # Backendless Setup 2 of 2: Sets up external database
+  ChefDB:
+    Type: AWS::RDS::DBInstance
+    # Conditional look up, if true then creates this resource.
+    Condition: DBCon
+    Properties:
+      # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
+      DBName: !Sub ${ChefSubdomain}-db
+      AllocatedStorage: 50
+      DBInstanceClass:  db.t2.large
+      Engine: PostgreSQL
+      EngineVersion: 9.5.2
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPassword
+      BackupRetentionPeriod: "30"
+      DBSecurityGroups: !Ref ChefDBSecurityGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      MonitoringInterval: 5
+      Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
+        - Name: !Sub "${ChefSubdomain} Database"
+    DeletionPolicy: "Snapshot"
+
+  AutoScaleGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AvailabilityZones:
+        - !Select [ 0, !GetAZs "" ]
+        - !Select [ 2, !GetAZs "" ]
+        - !Select [ 3, !GetAZs "" ]
+      VPCZoneIdentifier:
+        - !Ref SubnetA
+        - !Ref SubnetB
+        - !Ref SubnetC
+      LaunchConfigurationName: !Ref ServerLaunchConfig
+      MinSize: '2'
+      MaxSize: '3'
+      LoadBalancerNames:
+      - !Ref PrimaryElasticLoadBalancer
+      Tags:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
+      - Name: !Sub ${ChefSubdomain}-Scale-Group
+        PropagateAtLaunch: 'true'
+
+  ServerLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: !FindInMap [ RegionMap, !Ref "AWS::Region", HVM64 ]
+      AssociatePublicIpAddress: 'true'
+      InstanceType: !Ref InstanceType
+      SecurityGroups:
+        - !Ref FrontendSecurityGroup
+        - !Ref SSHSecurityGroup
+      KeyName: !Ref KeyName
+      BlockDeviceMappings:
+        - DeviceName: "/dev/sda1"
+          Ebs:
+            VolumeSize: '15'
+      IamInstanceProfile: !Ref ChefInstanceProfile
+      UserData:
+        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
+        # Since sub is being used, cannot use ${} for bash variables, only $VARIABLE won't trigger validation/build errors.
+        "Fn::Base64": !Sub |
+
+            #!/bin/bash -xev
+
+            # Sets s3 bucket based on conditionals
+            BUCKET="Fn::If": [ CreateChefBucket, ${ChefBucket}, ${BucketName} ]
+            # Pulls elasticsearch URL from ElasticsearchDomain resource
+            ELASTICURL="Fn:GetAtt": [ ElasticsearchDomain, DomainEndpoint ]
+            # Uses conditionals to determine if to pull DB URL from Parameters or ChefDB Resource
+            DBENDPOINT="Fn::If": [ DBCon, ${DBURL}, "Fn::GetAtt": [ ChefDB, Endpoint.Address ] ]
+            # Uses conditionals to determine if to pull DB Port from Parameters or ChefDB Resource
+            DBPORT="Fn::If": [ DBCon, ${DBPort} , "Fn::GetAtt": [ ChefDB, Endpoint.Port ] ]
+
+            exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+
+            apt-get update && apt-get -y upgrade
+            apt-get install -y wget curl python-setuptools python-pip git
+
+            # Helper function to set wait timer
+            error_exit()
+            {
+              /usr/local/bin/cfn-signal -e 1 -r $1 ${WaitHandle}
+              exit 1
+             }
+
+            # Install S3FS Dependencies
+            sudo apt-get install -y automake autotools-dev g++ git libcurl4-gnutls-dev libfuse-dev libssl-dev libxml2-dev make pkg-config
+
+            # Install S3FS
+
+            # If directory exists, remove it
+            if [ -d "/tmp/s3fs-fuse" ]; then
+              rm -rf /tmp/s3fs-fuse
+            fi
+
+            # If s3fs command doesn't exist, install
+            if [ ! -f "/usr/local/bin/s3fs" ]; then
+              cd /tmp
+              git clone https://github.com/s3fs-fuse/s3fs-fuse.git || error_exit 'Failed to clone s3fs-fuse'
+              cd s3fs-fuse
+              ./autogen.sh || error_exit 'Failed to run autogen for s3fs-fuse'
+              ./configure || error_exit 'Failed to run configure for s3fs-fuse'
+              make || error_exit 'Failed to make s3fs-fuse'
+              sudo make install || error_exit 'Failed run make-install s3fs-fuse'
+            fi
+
+            # Create S3FS Mount Directory
+            if [ ! -d "${S3Dir}" ]; then
+              mkdir ${S3Dir}
+            fi
+
+            # Mount S3 Bucket to Directory
+            s3fs -o allow_other -o umask=000 -o iam_role=${ChefRole} -o endpoint=${AWS::Region} $BUCKET ${S3Dir} || error_exit 'Failed to mount s3fs'
+
+            echo -e "$BUCKET ${S3Dir} fuse.s3fs rw,_netdev,allow_other,umask=000,iam_role=${ChefRole},endpoint=${AWS::Region},retries=5,multireq_max=5 0 0" >> /etc/fstab || error_exit 'Failed to add mount info to fstab'
+
+            # Sleep to allow s3fs to connect
+            sleep 20
+
+            HOSTNAME="chef-fe-$(curl -sS http://169.254.169.254/latest/meta-data/instance-id)"
+            FQDN="chef-fe-$(curl -sS http://169.254.169.254/latest/meta-data/instance-id).${HostedZone}"
+
+            if [ ${ExistingInstall} == 'false' ]; then
+                if [ ! -f ${S3Dir}/master ]; then
+                    echo $FQDN > ${S3Dir}/master
+                fi
+                MASTER=$(cat ${S3Dir}/master)
+            else
+                MASTER=NULL
+            fi
+
+            # make directories
+            mkdir -p ${S3Dir}/mail ${S3Dir}/newrelic ${S3Dir}/sumologic ${S3Dir}/db ${S3Dir}/certs
+
+            set +xv
+            ## DB Creds
+            echo "${DBUser}" | tr -d '\n' > ${S3Dir}/db/username
+            echo "${DBPassword}" | tr -d '\n' > ${S3Dir}/db/password
+
+            ## Mail
+            echo "${MailHost} ${MailCreds}" | tr -d '\n' > ${S3Dir}/mail/creds
+
+            ## New Relic
+            echo "${NewRelicLicense}" | tr -d '\n' > ${S3Dir}/newrelic/license
+
+            ## Sumologic
+            echo "${SumologicPassword}" | tr -d '\n' > ${S3Dir}/sumologic/password
+            echo "${SumologicAccessID}" | tr -d '\n' > ${S3Dir}/sumologic/access_id
+            echo "${SumologicAccessKey}" | tr -d '\n' > ${S3Dir}/sumologic/access_key
+            set -xv
+
+            # install chef
+            if [ ! -f "/usr/bin/chef-client" ]; then
+                curl -L https://omnitruck.chef.io/install.sh | bash || error_exit 'could no install chef'
+            fi
+
+            # Install cfn bootstraping tools
+            if [ ! -f "/usr/local/bin/cfn-signal" ]; then
+                easy_install https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz || error_exit "could not install cfn bootstrap tools"
+            fi
+
+            if [ ! -d "/etc/chef/ohai/hints" ]; then
+                mkdir -p /etc/chef/ohai/hints || error_exit 'Failed to create ohai folder'
+            fi
+
+            touch /etc/chef/ohai/hints/ec2.json || error_exit 'Failed to create ec2 hint file'
+            touch /etc/chef/ohai/hints/iam.json || error_exit 'Failed to create iam hint file'
+
+            # Create Chef Directory
+            if [ ! -d "${ChefDir}" ]; then
+              mkdir -p ${ChefDir}
+            fi
+
+            if [ ! -d '/etc/chef']; then
+              mkdir -p /etc/chef
+            fi
+
+            # Set hostname
+            hostname $FQDN  || error_exit 'Failed to set hostname'
+            echo  $FQDN  > /etc/hostname || error_exit 'Failed to set hostname file'
+
+            cat > '/etc/hosts' << EOF
+            127.0.0.1 $FQDN $HOSTNAME localhost
+            ::1 localhost6.localdomain6 localhost6
+            EOF
+
+
+            cat > ${ChefDir}/chef_stack.json << EOF
+            {
+                "citadel": {
+                    "bucket": "$BUCKET"
+                },
+                "${Cookbook}": {
+                    "master": "$MASTER",
+                    "backup": {
+                        "enable_backups": ${BackupEnable}
+                    },
+                    "version": {
+                        "server": ${ChefServerVersion},
+                        "reporting": ${ReportingVersion},
+                        "manage": ${ManageVersion}
+                    },
+                    "licensecount": "${LicenseCount}",
+                    "manage": {
+                        "signupdisable": ${SignupDisable},
+                        "supportemail": "${SupportEmail}"
+                    },
+                    "install": {
+                        "existing": ${ExistingInstall}
+                    },
+                    "mail": {
+                        "relayhost": "${MailHost}",
+                        "relayport": "${MailPort}"
+                    },
+                    "search": {
+                        "url": "$ELASTICURL"
+                    },
+                    "database": {
+                        "port": "$DBPORT",
+                        "url": "$DBENDPOINT"
+                    },
+                    "aws": {
+                        "AWS::Region": "${AWS::Region}"
+                    },
+                    "s3": {
+                        "dir": "${S3Dir}"
+                    },
+                    "ssl": {
+                        "enabled": ${BackendSSL}
+                    },
+                    "newrelic": {
+                        "appname": "${NewRelicAppName}",
+                        "enable": ${NewRelicEnable}
+                    },
+                    "sumologic": {
+                        "enable": ${SumologicEnable}
+                    },
+                    "api_fqdn": "chef.${HostedZone}",
+                    "prime_domain": "${HostedZone}",
+                    "stage_subdomain": "${ChefSubdomain}"
+                },
+                "run_list": [
+                    "recipe[apt-chef]",
+                    "recipe[chef-client]",
+                    "recipe[${Cookbook}]"
+                ]
+            }
+            EOF
+
+            # Install berks
+            if [ ! -f "/opt/chef/embedded/bin/berks" ]; then
+                /opt/chef/embedded/bin/gem install berkshelf
+            fi
+
+            # Copy json and setup for auto-restore option
+            cp ${ChefDir}/chef_stack.json ${ChefDir}/restore.json
+            sed -i "s/${Cookbook}/${Cookbook}::restore/g" ${ChefDir}/restore.json
+
+            cat > ${ChefDir}/runner.json <<EOF
+            {"run_list":["recipe[apt-chef]","recipe[chef-client]"]}
+            EOF
+
+            # Prep for letsencrypt later
+            cat > /etc/chef/client.rb <<EOF
+            log_level        :info
+            log_location     STDOUT
+            cookbook_path "${ChefDir}/berks-cookbooks"
+            json_attribs "${ChefDir}/runner.json"
+            chef_zero.enabled
+            local_mode true
+            chef_zero.port 8899
+            EOF
+
+            # Switch to main directory
+            cd ${ChefDir}
+            cat > ${ChefDir}/client.rb <<EOF
+            log_level        :info
+            log_location     STDOUT
+            cookbook_path "${ChefDir}/berks-cookbooks"
+            json_attribs "${ChefDir}/chef_stack.json"
+            chef_zero.enabled
+            local_mode true
+            chef_zero.port 8899
+            EOF
+
+            cat > "${ChefDir}/Berksfile" <<EOF
+            source 'https://supermarket.chef.io'
+            cookbook "${Cookbook}", git: '${CookbookGit}', branch: '${CookbookGitBranch}'
+            EOF
+
+            sudo su -l -c "cd ${ChefDir} && export BERKSHELF_PATH=${ChefDir} && /opt/chef/embedded/bin/berks vendor" || error_exit 'Berks Vendor failed to run'
+            sudo su -l -c "chef-client -c "${ChefDir}/client.rb"" || error_exit 'Failed to run chef-client'
+
+            # All is well so signal success and let CF know wait function is complete
+            /usr/local/bin/cfn-signal -e 0 -r 'Server setup complete' ${WaitHandle}
+
+  # Wait setups to force EC2 instances to now show cloudformation complete until the Userdata (backend cookbook) has completely succesfully
+  WaitHandle:
+    Type: AWS::CloudFormation::WaitConditionHandle
+  WaitCondition:
+    Type: AWS::CloudFormation::WaitCondition
+    DependsOn: ServerLaunchConfig
+    Properties:
+      Handle:  !Ref WaitHandle
+      Timeout: '2300'
