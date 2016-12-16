@@ -7,7 +7,7 @@ Cloudformation Templates to build out a complete Backendless Chef Configuration
 ## Info
 
 -   Builds out customized Chef Server build out without any backends to zone lock your setup
--   Built to utilize Ubuntu Xenial
+-   Built to utilize Ubuntu Xenial (For additional image info: [Ubuntu EC2 Images](https://cloud-images.ubuntu.com/locator/ec2/))
 -   Allows you to choose versions to install on Chef-Server, Manage, and Reporting (Limited to Xenial Supported versions)
 -   Builds out a RDS PostgreSQL Database, Version: 9.5.4
 -   Builds out AWS ElasticSearch Domain (Node/Replication Configurable), Version: 2.3
@@ -56,6 +56,10 @@ Info you need to find/decide on to successfully build our Stack
     -   ESProxyInstanceType; Default is good for small-medium Chef Build Outs. Change as needed
     -   ElasticInstanceType; Default is probably not going to cut it for tons of requests
     -   DBMultiAZ; Would recommend setting this to true
+    -   ChefInstanceMaxCount; Param is 2 but is technically 3 due to the bootstrap instance running
+    -   ChefInstanceMinCount; Param is 1 but is technically 2 minimum running due to bootstrap instance running
+
+**Note:** Default options set the following for instances -- Minimum instance creation is 2 by default due to Frontend Minimum 1 and Bootstrap Minimum 1. Max instance creation is 3 due to Frontend Max 2 + Bootstrap Max 1.
 
 #### Optional Setup
 

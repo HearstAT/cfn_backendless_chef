@@ -1,11 +1,12 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  AWS HA Chef Server 2.0 - Backendless Chef - Ubuntu Xenial Based
+  AWS HA Chef Server 2.0 - Backendless Chef - Ubuntu Xenial Based (20161214 AMI Build)
   "Backendless" Chef utilizing AWS as Backend for PostgreSQL and Elasticsearch
   Sets up the following:
     Backendless Items
     * Elasticsearch 2.3 Cluster
+      * NGINX Proxy with Whitelisted EIP for ES Access
     * PostgreSQL 9.5.4
 
 Parameters:
@@ -247,6 +248,16 @@ Parameters:
       - c4.2xlarge
     ConstraintDescription: must be a valid EC2 instance type.
 
+  ChefInstanceMaxCount:
+    Type: String
+    Default: '2'
+    Description: Set max number of instances to autoscale up to. (Note; +1 to any number here, 2 = 3 due to bootstrap instance being built)
+
+  ChefInstanceMinCount:
+    Type: String
+    Default: '1'
+    Description: Set minimum number of instances to run. (Note; 1 actually == 2 because of bootstrap instace)
+
   VPC:
     Description: Choose VPC to use
     Type: AWS::EC2::VPC::Id
@@ -329,6 +340,8 @@ Metadata:
         default: Instance & Network Configuration
       Parameters:
         - ChefInstanceType
+        - ChefInstanceMaxCount
+        - ChefInstanceMinCount
         - KeyName
         - VPC
         - SSHSecurityGroup
@@ -360,9 +373,9 @@ Conditions:
 Mappings:
   RegionMap:
     us-west-2:
-      HVM64: ami-167ba776
+      HVM64: ami-b7a114d7
     eu-west-1:
-      HVM64: ami-844e0bf7
+      HVM64: ami-6f587e1c
 
 Resources:
 
@@ -639,7 +652,7 @@ Resources:
     Properties:
       ElasticsearchVersion: 2.3
       ElasticsearchClusterConfig:
-        InstanceCount: 2
+        InstanceCount: !Ref ElasticInstanceCount
         ZoneAwarenessEnabled: false
         InstanceType: !Ref ElasticInstanceType
         DedicatedMasterEnabled: false
@@ -867,8 +880,8 @@ Resources:
       LaunchConfigurationName: !Ref ServerLaunchConfig
       LoadBalancerNames:
         - !Ref PrimaryElasticLoadBalancer
-      MaxSize: '3'
-      MinSize: '1'
+      MaxSize: !Ref ChefInstanceMaxCount
+      MinSize: !Ref ChefInstanceMinCount
       Tags:
         - Key: Name
           Value: !Sub frontend-${AWS::StackName}
@@ -1074,6 +1087,7 @@ Resources:
                 aws s3 cp s3://${BUCKET}/etc_opscode/private-chef-secrets.json /etc/opscode || error_exit "Failed to sync existing Chef Secrets"
                 aws s3 cp s3://${BUCKET}/etc_opscode/webui_priv.pem /etc/opscode || error_exit "Failed to sync existing WebUI Key"
                 aws s3 cp s3://${BUCKET}/etc_opscode/webui_pub.pem /etc/opscode || error_exit "Failed to sync existing WebUI Cert"
+                aws s3 sync s3://${BUCKET}/etc_opscode_reporting /etc/opscode-reporting || error_exit "Failed to sync bootstrap reporting directory"
                 mkdir -p /var/opt/opscode/upgrades || error_exit "Failed to create upgrades directory"
                 touch /var/opt/opscode/bootstrapped || error_exit "Failed to create bootstrap file"
                 aws s3 cp s3://${BUCKET}/migration-level /var/opt/opscode/upgrades/ || error_exit "Failed sync migration-level"
@@ -1260,6 +1274,7 @@ Resources:
               if [ -n "${!BOOTSTRAP_TAGS}" ]; then
                 echo "[INFO] syncing secrets up to S3"
                 aws s3 sync /etc/opscode s3://${BUCKET}/etc_opscode || error_exit "Failed to sync bootstrap opscode directory"
+                aws s3 sync /etc/opscode-reporting s3://${BUCKET}/etc_opscode_reporting || error_exit "Failed to sync bootstrap reporting directory"
                 aws s3 cp /var/opt/opscode/upgrades/migration-level s3://${BUCKET}/ || error_exit "Failed to sync bootstrap migration-level"
                 echo "[INFO] Write knife.rb file and syncing for knife ec restore/backup"
               cat > '/root/knife.rb' << EOF
@@ -1337,6 +1352,12 @@ Resources:
               ##########################################################
 
               /usr/local/bin/cfn-signal -e 0 -r 'Server setup complete' "${!WAITHANDLE}"
+
+              ##########################################################
+              # Reboot After Succes for all updates made
+              ##########################################################
+
+              reboot
 
             - { DBENDPOINT: !If [ DBCon, !GetAtt ChefDB.Endpoint.Address, !Ref DBURL ], BUCKET: !If [ ChefBucketCon, !Ref ChefBucket, !Ref ExistingBucketName ], PROXYIP: !GetAtt ProxyInstance.PrivateIp }
 
