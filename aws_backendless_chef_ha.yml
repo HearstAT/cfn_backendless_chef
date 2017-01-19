@@ -426,6 +426,7 @@ Resources:
   # Create the necessary subnet for RDS PostgreSQL
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
+    Condition: DBCon
     Properties:
       DBSubnetGroupDescription: "Chef DB Subnet Group"
       SubnetIds:
@@ -500,6 +501,7 @@ Resources:
 
   DBSecurityGroup:
     Type: AWS::RDS::DBSecurityGroup
+    Condition: DBCon
     Condition: DBPublicFalse
     Properties:
       EC2VpcId: !Ref VPC
@@ -509,6 +511,7 @@ Resources:
 
   DBSecurityGroupPublic:
     Type: AWS::RDS::DBSecurityGroup
+    Condition: DBCon
     Condition: DBPublicTrue
     Properties:
       EC2VpcId: !Ref VPC
@@ -834,7 +837,6 @@ Resources:
   BootstrapAutoScaleGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     DependsOn:
-      - ChefDB
       - ProxyInstance
     Properties:
       AvailabilityZones:
@@ -1061,7 +1063,7 @@ Resources:
 
               mkdir -p /etc/chef-manage/ /etc/opscode/ /etc/opscode-reporting/
 
-              if [ -z "${!BOOTSTRAP_TAGS}" ] || [ -n "${DBSnapShot}" ]; then
+              if [ -z "${!BOOTSTRAP_TAGS}" ] || [ -n "${DBSnapShot}" ] || [ -n "${DBURL}" ]; then
                 echo "[INFO] configuring this node as a regular Chef frontend"
                 aws s3 cp s3://${BUCKET}/etc_opscode/pivotal.pem /etc/opscode || error_exit "Failed to sync existing Pivotal Key"
                 aws s3 cp s3://${BUCKET}/etc_opscode/private-chef-secrets.json /etc/opscode || error_exit "Failed to sync existing Chef Secrets"
@@ -1291,7 +1293,7 @@ Resources:
                 chef-server-ctl reindex --all-orgs || error_exit "Failed to re-index orgs from DB Snapshot Setup"
               fi
 
-              if [ -n ${DBURL} ]; then
+              if [ -n "${!BOOTSTRAP_TAGS}" ] && [ -n "${DBURL}" ]; then
                 echo "Existing DB, re-indexing orgs"
                 chef-server-ctl reindex --all-orgs || error_exit "Failed to re-index orgs from Existing DB"
               fi
