@@ -919,7 +919,6 @@ Resources:
         - PolicyName: PublicELBCookieStickinessPolicy
           CookieExpirationPeriod: '3600'
       Listeners:
-          # Uses conditionals to set 443 or 80 based on parameter selection
         - InstancePort: '80'
           LoadBalancerPort: '443'
           InstanceProtocol: HTTP
@@ -928,7 +927,6 @@ Resources:
             - PublicELBCookieStickinessPolicy
           SSLCertificateId: !Ref SSLCertificateARN
       Tags:
-        # Use sub to treat params and resources like variables http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference-sub.html
         - Key: Name
           Value: !Sub ${ChefSubdomain}-ELB
 
@@ -1291,6 +1289,11 @@ Resources:
               if [ -n "${!BOOTSTRAP_TAGS}" ] && [ -n "${DBSnapShot}" ]; then
                 echo "Existing DB, re-indexing orgs"
                 chef-server-ctl reindex --all-orgs || error_exit "Failed to re-index orgs from DB Snapshot Setup"
+              fi
+
+              if [ -n ${DBURL} ]; then
+                echo "Existing DB, re-indexing orgs"
+                chef-server-ctl reindex --all-orgs || error_exit "Failed to re-index orgs from Existing DB"
               fi
 
               ##########################################################
