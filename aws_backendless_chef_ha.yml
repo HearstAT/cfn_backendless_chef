@@ -1285,18 +1285,14 @@ Resources:
                 aws s3 sync s3://${BUCKET}/chef_ec_backups /tmp/backup_sync || error_exit "Failed to sync backup files from S3"
                 tar -xzf /tmp/backup_sync/${BackupFilename} --strip-components=1 || error_exit "Failed to extract backup"
                 /opt/opscode/embedded/bin/knife ec restore /tmp/backup -s https://${ChefSubdomain}.${HostedZone} --with-user-sql --skip-useracl --sql-host ${DBENDPOINT} || error_exit "Failed to restore Backup"
-                chef-server-ctl reindex --all-orgs || error_exit "Failed to re-index orgs from Backup"
               fi
 
-              if [ -n "${!BOOTSTRAP_TAGS}" ] && [ -n "${DBSnapShot}" ]; then
-                echo "Existing DB, re-indexing orgs"
-                chef-server-ctl reindex --all-orgs || error_exit "Failed to re-index orgs from DB Snapshot Setup"
-              fi
+              echo "Existing DB, re-indexing orgs"
+              # Accomplish individually due to issues found with all-orgs flag
+              for org in $(chef-server-ctl org-list); do chef-server-ctl reindex $org; done || error_exit "Failed to re-index orgs"
 
-              if [ -n "${!BOOTSTRAP_TAGS}" ] && [ -n "${DBURL}" ]; then
-                echo "Existing DB, re-indexing orgs"
-                chef-server-ctl reindex --all-orgs || error_exit "Failed to re-index orgs from Existing DB"
-              fi
+              # Reconfigure again to ensure to pull any changes during reindex
+              chef-server-ctl reconfigure || error_exit "Chef Server Reconfigure Failed"
 
               ##########################################################
               # Upgrade Chef Chef if Selected
