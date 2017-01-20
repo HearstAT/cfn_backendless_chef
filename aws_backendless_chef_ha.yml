@@ -1293,6 +1293,7 @@ Resources:
 
               # Reconfigure again to ensure to pull any changes during reindex
               chef-server-ctl reconfigure || error_exit "Chef Server Reconfigure Failed"
+              chef-manage-ctl reconfigure || error_exit "Chef Manage Reconfigure Failed"
 
               ##########################################################
               # Upgrade Chef Chef if Selected
