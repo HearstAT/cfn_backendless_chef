@@ -50,8 +50,9 @@ Parameters:
 
   ChefServerVersion:
     Type: String
-    Default: "12.11.1"
+    Default: "12.12.0"
     AllowedValues:
+      - "12.12.0"
       - "12.11.1"
       - "12.11.0"
       - "12.10.0"
@@ -113,7 +114,7 @@ Parameters:
       - db.t2.large
       - db.m4.xlarge
       - db.m4.2xlarge
-    ConstraintDescription: must be a valid Elasticsearch instance type.
+    ConstraintDescription: must be a valid Database instance type.
 
   DBPublic:
     Type: String
@@ -770,6 +771,9 @@ Resources:
                 access_log /var/log/nginx/es_access.log;
                 error_log /var/log/nginx/es_error.log;
 
+                # Fixes issues with larger ES uploads
+                client_max_body_size 20M;
+
                 location / {
 
                   # Pass requests to ElasticSearch
@@ -1269,14 +1273,6 @@ Resources:
               fi
 
               ##########################################################
-              # NewRelic Config if Enabled
-              ##########################################################
-
-              if [ -n "${NewRelicAppName}" ]; then
-                wget -qO /root/newrelic.sh 'https://github.com/HearstAT/cfn_backendless_chef/raw/${GitBranch}/newrelic.sh' && bash /root/newrelic.sh ${NewRelicLicense} ${NewRelicAppName}
-              fi
-
-              ##########################################################
               # Existing Install Options
               ##########################################################
 
@@ -1307,12 +1303,12 @@ Resources:
               fi
 
               ##########################################################
-              # Restart Chef Server
+              # NewRelic Config if Enabled
               ##########################################################
 
-              # if [ "${RunUpgrade}" == 'false' ]; then
-                chef-server-ctl restart || error_exit "Chef Server Restart Failed"
-              # fi
+              if [ -n "${NewRelicAppName}" ]; then
+                wget -qO /root/newrelic.sh 'https://github.com/HearstAT/cfn_backendless_chef/raw/${GitBranch}/newrelic.sh' && bash /root/newrelic.sh ${NewRelicLicense} ${NewRelicAppName}
+              fi
 
               ##########################################################
               # Sumologic Config if Enabled
@@ -1321,6 +1317,13 @@ Resources:
               if [ -n "${SumologicAccessID}" ]; then
                 wget -qO /root/sumologic.sh 'https://github.com/HearstAT/cfn_backendless_chef/raw/${GitBranch}/sumologic.sh' && bash /root/sumologic.sh chef ${SumologicAccessID} ${SumologicAccessKey}
               fi
+
+              ##########################################################
+              # Restart Chef Server
+              ##########################################################
+
+              chef-server-ctl restart || error_exit "Chef Server Restart Failed"
+              chef-manage-ctl restart || error_exit "Chef Manage Restart Failed"
 
               ##########################################################
               # Send Success Signal to CFN Wait Handle
